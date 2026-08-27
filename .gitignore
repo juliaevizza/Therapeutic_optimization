@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Notebook/runtime
+.ipynb_checkpoints/
+/content/
+
+# Large third-party caches/models
+.cache/
+huggingface/
+external/
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+
+# Generated pipeline outputs (keep folder skeleton only)
+storage/inputs/*
+!storage/inputs/.gitkeep
+storage/mutants/fastas/*
+!storage/mutants/fastas/.gitkeep
+storage/ubiquitination/wt/*
+!storage/ubiquitination/wt/.gitkeep
+storage/ubiquitination/mutants/*
+!storage/ubiquitination/mutants/.gitkeep
+storage/structures/wt/*
+!storage/structures/wt/.gitkeep
+storage/structures/mutants/*
+!storage/structures/mutants/.gitkeep
+storage/structural/per_residue/*
+!storage/structural/per_residue/.gitkeep
+storage/structural/figures/*
+!storage/structural/figures/.gitkeep
+storage/tables/*
+!storage/tables/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
+
+# OS/editor
+.DS_Store
+.vscode/

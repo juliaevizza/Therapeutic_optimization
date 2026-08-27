@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+python -m pip install -q -e '.[eup]'
+
+if ! command -v git-lfs >/dev/null 2>&1; then
+  apt-get -qq update
+  apt-get -qq install -y git-lfs
+fi
+git lfs install
+
+echo "Base + EUP dependencies installed."
+echo "ColabFold is intentionally a separate dependency because its JAX/CUDA build must match the runtime."
+echo "Current ColabFold docs provide GPU and CPU install commands; install the appropriate build, then run:"
+echo "  python scripts/check_environment.py"

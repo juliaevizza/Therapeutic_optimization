@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import importlib.util
+import shutil
+
+
+def yes_no(value: bool) -> str:
+    return 'OK' if value else 'MISSING'
+
+
+def main() -> None:
+    print('Therapeutic optimization environment check')
+    print('-' * 48)
+    for command in ['git', 'git-lfs', 'colabfold_batch']:
+        print(f'{command:20s} {yes_no(shutil.which(command) is not None)}')
+    for module in ['numpy', 'pandas', 'Bio', 'matplotlib', 'torch', 'transformers']:
+        print(f'{module:20s} {yes_no(importlib.util.find_spec(module) is not None)}')
+    try:
+        import torch
+        print(f'{"CUDA":20s} {yes_no(torch.cuda.is_available())}')
+        if torch.cuda.is_available():
+            print(f'{"GPU":20s} {torch.cuda.get_device_name(0)}')
+    except Exception:
+        print(f'{"CUDA":20s} MISSING')
+
+
+if __name__ == '__main__':
+    main()
