@@ -10,35 +10,32 @@ For use, simple open the google colab attached, connect your runtime to a GPU, a
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in colab!" height="40">
 </a>
 
-## Pipeline logic
+## Toolchain logic
 
 ```text
+
 User amino-acid sequence
         |
         v
-T1  input transformation
-        |  -> storage/inputs/wt_input.fasta
+  T1: formatter
+        | 
         v
-UP1 WT ubiquitination prediction
-        |  -> UP1_wt_ubiquitination.csv
+UP1: WT ubiquitination prediction
+        |  
         v
-T2  mutation generation
-        |  -> mutant FASTAs + T2_mutation_manifest.csv
+T2: mutation generation
+        |  
         v
-S1  structure prediction + structural comparison
-        |  -> S1_structural_metrics.csv
-        |  -> S1_structurally_conserved.csv
+S1: structure prediction & structural comparison
+        |  
         v
-R1  structural screen accounting
-        |  -> R1_structural_screen.csv
+R1: structural screen accounting
+        |  
         v
-UB2 mutant ubiquitination prediction
-        |  -> UB2_mutant_ubiquitination.csv
+UB2: mutant ubiquitination prediction
+        |  
         v
-R2  final ranking
-        |  -> R2_optimized.csv
-        |  -> R2_needs_further_optimization.csv
-        `  -> R2_all_ranked.csv
+R2:  final ranking
 ```
 
 ## Repository layout
@@ -139,14 +136,6 @@ The `max_variants` guard prevents accidental combinatorial explosions before exp
 
 - `storage/mutants/fastas/<variant_id>.fasta`
 - `storage/tables/T2_mutation_manifest.csv`
-
-Variant IDs are deterministic. Examples:
-
-```text
-K16A
-K16A__K43A
-K16R__K43A
-```
 
 ### S1 — structure prediction + preservation screen
 
