@@ -5,7 +5,7 @@ A modular protein optimization workflow for identifying predicted ubiquitination
 The repository is intentionally organized so the notebook is a **lightweight user interface** while the heavy lifting lives in the installable Python package under `src/therapeutic_optimization/`.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](
-https://colab.research.google.com/github/juliaevizza/therapeutic_optimization/blob/main/therapeutic_optimization_colab.ipynb
+https://colab.research.google.com/github/juliaevizza/Therapeutic_optimization/blob/main/notebooks/therapeutic_optimization_colab.ipynb
 )
 
 ## Pipeline logic
