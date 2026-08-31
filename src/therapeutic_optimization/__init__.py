@@ -9,6 +9,7 @@ from .config import (
     WorkflowConfig,
 )
 from .workflow import OptimizationWorkflow
+from .comparison import build_lysine_free_comparison
 
 __all__ = [
     'MutationConfig',
@@ -18,4 +19,5 @@ __all__ = [
     'StructurePredictorConfig',
     'WorkflowConfig',
     'OptimizationWorkflow',
+    'build_lysine_free_comparison',
 ]

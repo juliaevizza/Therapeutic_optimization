@@ -12,6 +12,41 @@ from ..io import apply_mutations, read_single_fasta, write_fasta
 REQUIRED_UP1_COLUMNS = {'lysine_position', 'probability'}
 
 
+def generate_all_lysine_to_arginine_manifest(
+    paths: ProjectPaths,
+) -> pd.DataFrame:
+    """Create one lysine-free variant by replacing every WT lysine with arginine."""
+    paths.ensure()
+    _protein_id, wt_sequence = read_single_fasta(paths.wt_fasta)
+    positions = [position for position, residue in enumerate(wt_sequence, start=1) if residue == 'K']
+    if not positions:
+        raise ValueError('The WT sequence is already lysine-free; no K-to-R mutant can be generated.')
+
+    mutations = tuple(f'K{position}R' for position in positions)
+    variant_id = 'ALL_K_TO_R'
+    mutant_sequence = apply_mutations(wt_sequence, mutations)
+    fasta_path = paths.mutant_fastas / f'{variant_id}.fasta'
+    write_fasta(variant_id, mutant_sequence, fasta_path)
+
+    manifest = pd.DataFrame(
+        [
+            {
+                'variant_id': variant_id,
+                'mutation_spec': ';'.join(mutations),
+                'mutation_count': len(mutations),
+                'source_sites': ';'.join(f'K{position}' for position in positions),
+                'replacement_aas': ';'.join('R' for _position in positions),
+                'sequence_length': len(mutant_sequence),
+                'fasta_path': str(fasta_path),
+                'status': 'PASS',
+                'error': None,
+            }
+        ]
+    )
+    manifest.to_csv(paths.tables / 'T2_all_lysine_to_arginine_manifest.csv', index=False)
+    return manifest
+
+
 def _positive_sites(up1: pd.DataFrame, threshold: float) -> list[int]:
     missing = REQUIRED_UP1_COLUMNS - set(up1.columns)
     if missing:

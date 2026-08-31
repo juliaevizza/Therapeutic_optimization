@@ -5,9 +5,14 @@ from pathlib import Path
 import pandas as pd
 
 from .config import ProjectPaths, WorkflowConfig
+from .comparison import build_lysine_free_comparison
 from .ranking import run_r1, run_r2
 from .structural_analysis import build_structure_predictor, run_s1
-from .transformations import generate_mutant_manifest, prepare_wt_input
+from .transformations import (
+    generate_all_lysine_to_arginine_manifest,
+    generate_mutant_manifest,
+    prepare_wt_input,
+)
 from .ubiquitination_prediction import build_predictor, run_ub2, run_up1
 
 
@@ -47,6 +52,9 @@ class OptimizationWorkflow:
         if up1 is None:
             up1 = pd.read_csv(self.paths.tables / 'UP1_wt_ubiquitination.csv')
         return generate_mutant_manifest(up1, self.paths, self.config.mutation)
+
+    def T2_all_lysine_to_arginine(self) -> pd.DataFrame:
+        return generate_all_lysine_to_arginine_manifest(self.paths)
 
     def S1(
         self,
@@ -118,4 +126,38 @@ class OptimizationWorkflow:
             'R2_all': r2_all,
             'R2_optimized': r2_optimized,
             'R2_needs_further_optimization': r2_needs,
+        }
+
+    def run_lysine_free_comparison(
+        self,
+        sequence: str | None = None,
+        protein_id: str = 'WT',
+        predict_structures: bool = True,
+    ) -> dict[str, object]:
+        """Compare WT with one mutant in which every lysine is replaced by arginine."""
+        t1 = self.T1(sequence, protein_id) if sequence is not None else None
+        up1 = self.UP1()
+        manifest = self.T2_all_lysine_to_arginine()
+        s1_metrics, _s1_conserved = self.S1(
+            manifest,
+            predict_structures=predict_structures,
+        )
+        r1 = self.R1(manifest, s1_metrics)
+        # Score the designated mutant even when it fails the structural gate.
+        ub2 = run_ub2(self.ubi_predictor, manifest, self.paths)
+        comparison = build_lysine_free_comparison(
+            up1=up1,
+            ub2=ub2,
+            manifest=manifest,
+            s1_metrics=s1_metrics,
+            paths=self.paths,
+        )
+        return {
+            'T1': t1,
+            'UP1': up1,
+            'T2_all_lysine_to_arginine': manifest,
+            'S1_metrics': s1_metrics,
+            'R1': r1,
+            'UB2': ub2,
+            'lysine_free_comparison': comparison,
         }

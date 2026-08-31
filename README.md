@@ -325,6 +325,50 @@ For existing ColabFold outputs:
 therapeutic-optimize --stage S1 --analyze-only
 ```
 
+## WT versus completely lysine-free K-to-R comparison
+
+The dedicated `lysine-free` workflow creates exactly one mutant by replacing every
+lysine (`K`) in the WT sequence with arginine (`R`). It then runs WT
+ubiquitination prediction, predicts and compares the WT/mutant structures, records
+the R1 structural decision, scores the mutant, and writes a combined comparison
+table. Mutant scoring is retained even when the structure does not pass the
+structural gate.
+
+Clone, install, and run it from a terminal:
+
+```bash
+git clone https://github.com/juliaevizza/Therapeutic_optimization.git
+cd Therapeutic_optimization
+python -m pip install -e '.[eup]'
+
+therapeutic-optimize \
+  --stage lysine-free \
+  --sequence-file /path/to/wt_sequence.fasta \
+  --protein-id my_protein \
+  --project-root ./lysine_free_run
+```
+
+`--sequence-file` accepts either a FASTA file or a plain-text amino-acid
+sequence. You can instead pass a sequence directly with `--sequence
+"MSEQUENCE..."`. If T1 has already created
+`storage/inputs/wt_input.fasta` beneath the project root, the sequence argument
+can be omitted on later runs.
+
+The main outputs are:
+
+- `storage/mutants/fastas/ALL_K_TO_R.fasta`
+- `storage/tables/T2_all_lysine_to_arginine_manifest.csv`
+- `storage/tables/UP1_wt_ubiquitination.csv`
+- `storage/tables/S1_structural_metrics.csv`
+- `storage/tables/R1_structural_screen.csv`
+- `storage/tables/UB2_mutant_ubiquitination.csv`
+- `storage/tables/LF1_WT_vs_all_K_to_R_comparison.csv`
+
+The final comparison table contains WT and mutant ubiquitination counts and
+probability burdens alongside RMSD, local displacement, contact-change, pLDDT,
+radius-of-gyration, and structural-preservation metrics. ColabFold and the EUP
+model still require the GPU/runtime dependencies described above.
+
 ## Adding another ubiquitination predictor
 
 1. Create an adapter subclassing `UbiquitinationPredictor`.
