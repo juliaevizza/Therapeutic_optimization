@@ -39,10 +39,6 @@ R2  final ranking
         `  -> R2_all_ranked.csv
 ```
 
-### Important input correction
-
-EUP is a **sequence-based** ubiquitination-site predictor. It receives a protein FASTA, not a predicted 3D structure. The structural branch separately sends the WT and mutant FASTAs to ColabFold/AlphaFold.
-
 ## Repository layout
 
 ```text
