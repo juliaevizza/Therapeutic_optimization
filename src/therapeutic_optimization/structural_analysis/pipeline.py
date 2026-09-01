@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 
 from ..config import ProjectPaths, StructuralThresholds, StructurePredictorConfig
-from .colabfold import ColabFoldPredictor, find_rank1_structure
+from .colabfold import ColabFoldPredictor, StructurePrediction, find_rank1_structure
 from .metrics import analyze_structure_pair
 
 
@@ -79,7 +81,22 @@ def run_s1(
     valid_manifest = manifest.loc[manifest['status'].eq('PASS')].copy()
 
     if predict_structures:
-        wt_structure = predictor.predict(paths.wt_fasta, paths.structures_wt)
+        predictions = [
+            StructurePrediction('WT', paths.wt_fasta, paths.structures_wt),
+            *(
+                StructurePrediction(
+                    str(row.variant_id),
+                    Path(row.fasta_path),
+                    paths.structures_mutants / str(row.variant_id),
+                )
+                for row in valid_manifest.itertuples(index=False)
+            ),
+        ]
+        structures = predictor.predict_batch(
+            predictions,
+            paths.storage / 'structures' / 'batch',
+        )
+        wt_structure = structures['WT']
     else:
         wt_structure = find_rank1_structure(paths.structures_wt)
 
@@ -89,7 +106,7 @@ def run_s1(
         mutant_output = paths.structures_mutants / variant_id
         try:
             if predict_structures:
-                mutant_structure = predictor.predict(row.fasta_path, mutant_output)
+                mutant_structure = structures[variant_id]
             else:
                 mutant_structure = find_rank1_structure(mutant_output)
             metrics = analyze_structure_pair(

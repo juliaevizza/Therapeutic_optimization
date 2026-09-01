@@ -139,7 +139,7 @@ The `max_variants` guard prevents accidental combinatorial explosions before exp
 
 ### S1 — structure prediction + preservation screen
 
-The structure adapter is isolated from the metric code. `ColabFoldPredictor` currently wraps `colabfold_batch`; a future AlphaFold server/local adapter can be added without touching the metrics or ranking stages.
+The structure adapter is isolated from the metric code. `ColabFoldPredictor` wraps `colabfold_batch` and submits the WT plus all valid mutants together as one multi-FASTA batch. This avoids paying ColabFold startup and model-loading costs once per generated structure. Rank-1 results are copied back into the existing per-variant structure directories, so analysis-only reruns keep the same layout. A future AlphaFold server/local adapter can be added without touching the metrics or ranking stages.
 
 Structural metrics include:
 
@@ -380,7 +380,7 @@ T2, UB2, and R2 require no changes.
 
 ## Adding another structure predictor
 
-1. Create an adapter exposing `predict(fasta_path, output_dir) -> structure_path`.
+1. Create an adapter exposing `predict_batch(predictions, batch_output_dir) -> {variant_id: structure_path}`.
 2. Register it in `structural_analysis/pipeline.py::build_structure_predictor`.
 3. Keep the rank-1 output as PDB/CIF so `metrics.py` can consume it.
 
