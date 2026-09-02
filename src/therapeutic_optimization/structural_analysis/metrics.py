@@ -135,6 +135,7 @@ def mutation_distance_from_centroid(model, position: int) -> float:
 
 def _plot_displacement(df: pd.DataFrame, variant_id: str, positions: list[int], path: Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 4))
+    ax.set_ylim(0, 50)
     ax.plot(df['position'], df['ca_displacement'])
     for position in positions:
         ax.axvline(position, linestyle='--')
