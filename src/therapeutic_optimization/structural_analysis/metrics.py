@@ -17,6 +17,8 @@ RESIDUE_VOLUME = {
     'S': 73.0, 'T': 93.0, 'W': 163.0, 'Y': 141.0, 'V': 105.0,
 }
 
+DISPLACEMENT_Y_LIMITS = (0.0, 50.0)
+
 
 def load_structure(path: str | Path):
     path = Path(path)
@@ -138,6 +140,7 @@ def _plot_displacement(df: pd.DataFrame, variant_id: str, positions: list[int], 
         ax.axvline(position, linestyle='--')
     ax.set_xlabel('Residue position')
     ax.set_ylabel('Cα displacement after alignment (Å)')
+    ax.set_ylim(*DISPLACEMENT_Y_LIMITS)
     ax.set_title(f'WT vs {variant_id}')
     fig.tight_layout()
     path.parent.mkdir(parents=True, exist_ok=True)
