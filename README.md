@@ -139,7 +139,7 @@ The `max_variants` guard prevents accidental combinatorial explosions before exp
 
 ### S1 — structure prediction + preservation screen
 
-The structure adapter is isolated from the metric code. `ColabFoldPredictor` wraps `colabfold_batch` and submits the WT plus all valid mutants together as one multi-FASTA batch. This avoids paying ColabFold startup and model-loading costs once per generated structure. Rank-1 results are copied back into the existing per-variant structure directories, so analysis-only reruns keep the same layout. A future AlphaFold server/local adapter can be added without touching the metrics or ranking stages.
+The structure adapter is isolated from the metric code. `ColabFoldPredictor` wraps `colabfold_batch` and submits the WT plus all valid mutants together as one multi-FASTA batch. This avoids paying ColabFold startup and model-loading costs once per generated structure. Rank-1 results are copied back into the existing per-variant structure directories, so analysis-only reruns keep the same layout. A future AlphaFold server/local adapter can be added without touching the metrics or ranking stages. (#TODO: consider also adding a mean pooling alpha fold structures here?)
 
 Structural metrics include:
 
