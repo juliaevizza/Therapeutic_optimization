@@ -41,12 +41,14 @@ def run_r1(
     r1['R1_status'] = r1['structure_pass'].map(
         {True: 'ADVANCE_TO_UB2', False: 'DROPPED_STRUCTURAL'}
     )
+    if 'screen_status' in r1.columns:
+        r1.loc[r1['screen_status'].eq('ESM2_REJECTED'), 'R1_status'] = 'DROPPED_ESM2'
     r1 = r1.sort_values(
         ['structure_pass', 'structural_preservation_score'],
         ascending=[False, False],
         na_position='last',
     ).reset_index(drop=True)
-    r1.to_csv(paths.tables / 'R1_structural_screen.csv', index=False)
+    r1.to_csv(paths.table('R1_structural_screen.csv'), index=False)
     return r1
 
 
@@ -92,6 +94,9 @@ def attach_esm2_scores(
         'mutant_pseudo_perplexity': 'esm2_mutant_pseudo_perplexity',
         'delta_pseudo_perplexity': 'esm2_delta_pseudo_perplexity',
         'pseudo_perplexity_percent_change': 'esm2_pseudo_perplexity_percent_change',
+        'mean_residue_representation_cosine_similarity': (
+            'esm2_mean_residue_representation_cosine_similarity'
+        ),
         'pooled_representation_cosine_similarity': (
             'esm2_pooled_representation_cosine_similarity'
         ),
@@ -242,9 +247,9 @@ def run_r2(
 
     ranked = pd.DataFrame(records)
     if ranked.empty:
-        ranked.to_csv(paths.tables / 'R2_all_ranked.csv', index=False)
-        ranked.to_csv(paths.tables / 'R2_optimized.csv', index=False)
-        ranked.to_csv(paths.tables / 'R2_needs_further_optimization.csv', index=False)
+        ranked.to_csv(paths.table('R2_all_ranked.csv'), index=False)
+        ranked.to_csv(paths.table('R2_optimized.csv'), index=False)
+        ranked.to_csv(paths.table('R2_needs_further_optimization.csv'), index=False)
         return ranked, ranked.copy(), ranked.copy()
 
     if esm2_results is not None:
@@ -278,7 +283,7 @@ def run_r2(
     optimized = ranked.loc[ranked['R2_group'].eq('optimized')].copy()
     needs = ranked.loc[ranked['R2_group'].eq('needs_further_optimization')].copy()
 
-    ranked.to_csv(paths.tables / 'R2_all_ranked.csv', index=False)
-    optimized.to_csv(paths.tables / 'R2_optimized.csv', index=False)
-    needs.to_csv(paths.tables / 'R2_needs_further_optimization.csv', index=False)
+    ranked.to_csv(paths.table('R2_all_ranked.csv'), index=False)
+    optimized.to_csv(paths.table('R2_optimized.csv'), index=False)
+    needs.to_csv(paths.table('R2_needs_further_optimization.csv'), index=False)
     return ranked, optimized, needs

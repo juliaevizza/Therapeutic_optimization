@@ -9,6 +9,37 @@ import os
 DEFAULT_ESM2_MODEL = 'facebook/esm2_t33_650M_UR50D'
 
 
+@dataclass(slots=True)
+class ComplexSearchConfig:
+    replacement_aas: tuple[str, ...] = ('R', 'H', 'Q', 'E', 'C')
+    target_survivors: int = 25
+    min_mean_residue_cosine_similarity: float = 0.9995
+    max_pseudo_perplexity_percent_change: float | None = None
+    max_candidates: int | None = None
+
+    def validate(self) -> None:
+        import math
+
+        if not self.replacement_aas or self.replacement_aas[0] != 'R':
+            raise ValueError('The complex replacement order must start with arginine (R).')
+        if len(set(self.replacement_aas)) != len(self.replacement_aas):
+            raise ValueError('The complex replacement order must not contain duplicates.')
+        if set(self.replacement_aas) - set('ACDEFGHILMNPQRSTVWY'):
+            raise ValueError('Use uppercase canonical replacement amino acids, excluding K.')
+        if not isinstance(self.target_survivors, int) or self.target_survivors < 1:
+            raise ValueError('target_survivors must be a positive integer.')
+        if not -1 <= self.min_mean_residue_cosine_similarity < 1:
+            raise ValueError('The strict cosine cutoff must be in [-1, 1).')
+        if self.max_candidates is not None and (
+            not isinstance(self.max_candidates, int) or self.max_candidates < 1
+        ):
+            raise ValueError('max_candidates must be a positive integer or None.')
+        if self.max_pseudo_perplexity_percent_change is not None and not math.isfinite(
+            self.max_pseudo_perplexity_percent_change
+        ):
+            raise ValueError('The optional perplexity percent-change limit must be finite.')
+
+
 def _default_eup_repo() -> Path:
     if Path('/content').exists():
         return Path('/content/external/EUP')
@@ -124,7 +155,7 @@ class ESM2AnalysisConfig:
         if self.perplexity_weight < 0 or self.representation_weight < 0:
             raise ValueError('ESM-2 scoring weights cannot be negative.')
         if self.perplexity_weight + self.representation_weight <= 0:
-            raise ValueError('At least one ESM-2 scoring weight must be positive.')
+            raise ValueError('ESM-2 requires at least one positive scoring weight.')
 
 
 @dataclass(slots=True)
@@ -134,15 +165,25 @@ class WorkflowConfig:
     structure: StructurePredictorConfig = field(default_factory=StructurePredictorConfig)
     structural_thresholds: StructuralThresholds = field(default_factory=StructuralThresholds)
     esm2: ESM2AnalysisConfig = field(default_factory=ESM2AnalysisConfig)
+    mode: Literal['basic', 'sophisticated'] = 'basic'
+    complex_search: ComplexSearchConfig = field(default_factory=ComplexSearchConfig)
 
 
 @dataclass(slots=True)
 class ProjectPaths:
     root: Path
+    stage_suffix: str = ''
 
     @classmethod
-    def from_root(cls, root: str | Path) -> 'ProjectPaths':
-        return cls(Path(root).expanduser().resolve())
+    def from_root(cls, root: str | Path, stage_suffix: str = '') -> 'ProjectPaths':
+        return cls(Path(root).expanduser().resolve(), stage_suffix)
+
+    def table(self, name: str) -> Path:
+        """Use explicit stage labels while supporting standalone legacy callers."""
+        if self.stage_suffix:
+            stage, separator, rest = name.partition('_')
+            name = f'{stage}_{self.stage_suffix}{separator}{rest}'
+        return self.tables / name
 
     @property
     def storage(self) -> Path:

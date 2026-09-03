@@ -12,6 +12,74 @@ For use, simple open the google colab attached, connect your runtime to a GPU, a
 
 ## Toolchain logic
 
+The first code cell in `notebooks/therapeutic_optimization_colab.ipynb` now selects
+`WORKFLOW_MODE = "sophisticated"` (the notebook default) or `"basic"` (the original
+workflow). Rerun the cells below the switch after changing it. Python and CLI
+callers retain `basic` as their default.
+
+Every workflow stage has an explicit `_basic` and `_complex` entry point, such as
+`T2_basic`, `T2_complex`, `S1_basic`, and `S1_complex`. Unsuffixed methods dispatch
+according to `WorkflowConfig.mode`. Workflow output tables carry the same suffix,
+for example `T2_basic_mutation_manifest.csv` and `T2_complex_mutation_manifest.csv`.
+Use `workflow.paths.table("T2_mutation_manifest.csv")` to resolve the selected name.
+Standalone low-level functions with a default `ProjectPaths` retain their legacy
+unsuffixed names; stage-contract filenames below use that legacy spelling.
+
+In sophisticated mode, `T2_complex` runs an adaptive loop:
+
+1. Select WT lysines whose UP1 probability is strictly above the mutation threshold.
+2. Mutate **all selected sites to R**. Other residues, including unselected lysines,
+   remain unchanged.
+3. Calculate WT-relative ESM-2 pseudo-perplexity and representation metrics. Require
+   **`mean_residue_representation_cosine_similarity > 0.9995`** before predicting
+   structure. This cutoff applies to mean residue cosine similarity, not pooled
+   similarity or pseudo-perplexity. Perplexity changes are recorded; the optional
+   `max_pseudo_perplexity_percent_change` adds a separate limit (`0.0` forbids increases).
+4. Run structural prediction/comparison for eligible candidates and count only
+   mutants that pass the existing S1 structural thresholds.
+5. Introduce H at one site at a time, then every pair, then triples through all
+   sites. Introduce Q, then E, then C the same way: for each new amino acid,
+   enumerate its multiplicity from 1 through n and fill the remaining sites with
+   every combination of earlier amino acids. Previously tested assignments are
+   never repeated. The final assignment is all C.
+6. Stop immediately at **25 structural survivors**, or when this five-amino-acid
+   space is exhausted. Only survivors continue to UB2 and R2.
+
+The explicit replacement order is **arginine → histidine → glutamine → glutamic
+acid → cysteine (`R, H, Q, E, C`)**, with no later replacements. For two sites, the
+first candidates are `RR, HR, RH, HH, QR, QH, RQ, HQ, QQ`.
+
+Candidates are generated lazily, so early stopping avoids materializing the full
+`5 ** site_count` space. Basic mode's `max_variants` and `max_combination_order`
+do not limit this search. An optional `max_candidates` bounds attempted candidates;
+the default is `None`. Exhaustion or a candidate limit can yield fewer than 25.
+
+Each completed attempt updates the cumulative T2, ESM2, and S1 tables and
+`storage/tables/T2_complex_search_summary.json`. The summary distinguishes
+`TARGET_REACHED`, `EXHAUSTED`, `NO_PROBLEMATIC_SITES`, `CANDIDATE_LIMIT`, and failures.
+ESM-2 failures stop the run rather than sending unscored candidates to structure
+prediction. Saved tables preserve progress for inspection; rerunning T2 starts a
+fresh search. Later ESM2/S1 notebook cells reuse the in-memory completed search.
+R1 distinguishes `DROPPED_ESM2` from structural dropouts. The ESM-2 screen is a
+computational prescreen; the S1 structural gates still determine survival.
+
+```python
+from therapeutic_optimization import ComplexSearchConfig, WorkflowConfig, OptimizationWorkflow
+
+config = WorkflowConfig(
+    mode="sophisticated",
+    complex_search=ComplexSearchConfig(
+        replacement_aas=("R", "H", "Q", "E", "C"),
+        target_survivors=25,
+        min_mean_residue_cosine_similarity=0.9995,
+    ),
+)
+workflow = OptimizationWorkflow("my_run", config)
+results = workflow.run_all(WT_SEQUENCE)
+```
+
+The original basic workflow follows this sequence:
+
 ```text
 
 User amino-acid sequence
@@ -116,7 +184,7 @@ This makes T2 and R2 predictor-independent.
 
 T2 reads UP1, selects lysines above the configured probability threshold, and generates FASTAs.
 
-Two modes already exist:
+Basic mode preserves two mutation-generation strategies:
 
 - `single`: mutate one selected lysine at a time.
 - `combinatorial`: generate mutation orders 1 through `max_combination_order`, including all configured replacement amino-acid combinations.
@@ -153,7 +221,8 @@ R2 derives a bounded ESM2 compatibility score from two configurable components:
 
 The default weighting is 70% sequence plausibility and 30% representation
 preservation. ESM2 breaks ties after the ubiquitination objectives and before
-the structural preservation score; it is not a hard biological filter.
+the structural preservation score. Basic mode uses ESM2 for ranking;
+sophisticated mode additionally applies the mean-residue cosine prescreen above.
 
 **Primary outputs:**
 
@@ -162,7 +231,13 @@ the structural preservation score; it is not a hard biological filter.
 
 ### S1 — structure prediction + preservation screen
 
-The structure adapter is isolated from the metric code. `ColabFoldPredictor` wraps `colabfold_batch` and submits the WT plus all valid mutants together as one multi-FASTA batch. This avoids paying ColabFold startup and model-loading costs once per generated structure. Rank-1 results are copied back into the existing per-variant structure directories, so analysis-only reruns keep the same layout. A future AlphaFold server/local adapter can be added without touching the metrics or ranking stages.
+The structure adapter is isolated from the metric code. In basic mode,
+`ColabFoldPredictor` submits WT and all valid mutants in one multi-FASTA batch.
+Sophisticated mode predicts one eligible mutant at a time so it can stop exactly
+at the target. It predicts WT once per search, uses separate batch directories
+to prevent query-name collisions, and releases ESM-2 before ColabFold runs.
+Rank-1 results are copied into per-variant structure directories. The per-candidate
+search incurs repeated ColabFold startup and ESM-2 model-loading costs.
 
 Structural metrics include:
 
@@ -354,6 +429,14 @@ r2_all, optimized, needs_more = workflow.R2(
 ## CLI
 
 After installation:
+
+Run the new search with `therapeutic-optimize --mode sophisticated --stage all
+--sequence "YOUR_SEQUENCE"`. Use `--complex-replacement-order R H Q E C`,
+`--target-survivors 25`, `--min-mean-residue-cosine 0.9995`,
+`--max-perplexity-percent-change`, or `--max-complex-candidates` to adjust it.
+`--skip-esm2` is available only in basic mode. In sophisticated mode, `--stage T2`
+includes the adaptive ESM2/S1 loop. The following commands select the basic
+workflow by default; use the same `--mode` for every stage of a run.
 
 ```bash
 pip install -e '.[eup]'

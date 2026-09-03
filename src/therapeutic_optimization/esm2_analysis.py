@@ -448,6 +448,7 @@ def run_esm2_analysis(
     *,
     scorer: ESM2Scorer | None = None,
     output_path: str | Path | None = None,
+    wt_score: SequenceScore | None = None,
 ) -> pd.DataFrame:
     """Score every valid T2 mutant and compare it directly with WT.
 
@@ -468,7 +469,7 @@ def run_esm2_analysis(
 
     paths.ensure()
     output = Path(output_path) if output_path is not None else (
-        paths.tables / "ESM2_mutant_comparison.csv"
+        paths.table("ESM2_mutant_comparison.csv")
     )
     output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -481,7 +482,10 @@ def run_esm2_analysis(
     active_config = active_scorer.config
     active_config.validate()
     _wt_id, wt_sequence = read_single_fasta(paths.wt_fasta)
-    wt_score = active_scorer.score_sequence(wt_sequence)
+    if wt_score is None:
+        wt_score = active_scorer.score_sequence(wt_sequence)
+    elif wt_score.sequence != wt_sequence:
+        raise ValueError('Cached ESM-2 WT score does not match the current WT sequence.')
 
     per_residue_dir = paths.esm2_per_residue
     if active_config.save_per_residue:
@@ -564,7 +568,7 @@ def main() -> None:
     args = parser.parse_args()
 
     paths = ProjectPaths.from_root(args.project_root)
-    manifest_path = args.manifest or paths.tables / "T2_mutation_manifest.csv"
+    manifest_path = args.manifest or paths.table("T2_mutation_manifest.csv")
     manifest = pd.read_csv(manifest_path)
     result = run_esm2_analysis(
         manifest,
@@ -582,7 +586,7 @@ def main() -> None:
     )
     pass_count = int(result["analysis_status"].eq("PASS").sum())
     print(f"ESM-2 analysis complete: {pass_count}/{len(result)} mutants passed.")
-    print(args.output or paths.tables / "ESM2_mutant_comparison.csv")
+    print(args.output or paths.table("ESM2_mutant_comparison.csv"))
 
 
 if __name__ == "__main__":

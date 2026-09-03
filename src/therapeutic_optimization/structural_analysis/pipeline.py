@@ -132,6 +132,10 @@ def run_s1(
     predictor: ColabFoldPredictor,
     thresholds: StructuralThresholds,
     predict_structures: bool = True,
+    *,
+    wt_structure_path: Path | None = None,
+    batch_output_dir: Path | None = None,
+    write_tables: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     S1: predict WT/mutant structures, compute metrics, and emit the conserved subset.
@@ -139,9 +143,12 @@ def run_s1(
     paths.ensure()
     valid_manifest = manifest.loc[manifest['status'].eq('PASS')].copy()
 
-    if predict_structures:
+    if valid_manifest.empty:
+        wt_structure = None
+    elif predict_structures:
         predictions = [
-            StructurePrediction('WT', paths.wt_fasta, paths.structures_wt),
+            *([StructurePrediction('WT', paths.wt_fasta, paths.structures_wt)]
+              if wt_structure_path is None else []),
             *(
                 StructurePrediction(
                     str(row.variant_id),
@@ -153,11 +160,11 @@ def run_s1(
         ]
         structures = predictor.predict_batch(
             predictions,
-            paths.storage / 'structures' / 'batch',
+            batch_output_dir or paths.storage / 'structures' / 'batch',
         )
-        wt_structure = structures['WT']
+        wt_structure = wt_structure_path if wt_structure_path is not None else structures['WT']
     else:
-        wt_structure = find_rank1_structure(paths.structures_wt)
+        wt_structure = wt_structure_path or find_rank1_structure(paths.structures_wt)
 
     records: list[dict] = []
     for row in valid_manifest.itertuples(index=False):
@@ -200,8 +207,10 @@ def run_s1(
         raw['analysis_error'] = pd.Series(dtype=str)
 
     classified = classify_structural_preservation(raw, thresholds)
-    classified.to_csv(paths.tables / 'S1_structural_metrics.csv', index=False)
+    if write_tables:
+        classified.to_csv(paths.table('S1_structural_metrics.csv'), index=False)
     conserved = classified.loc[classified['structure_pass']].copy()
     conserved = conserved.sort_values('structural_preservation_score', ascending=False)
-    conserved.to_csv(paths.tables / 'S1_structurally_conserved.csv', index=False)
+    if write_tables:
+        conserved.to_csv(paths.table('S1_structurally_conserved.csv'), index=False)
     return classified, conserved

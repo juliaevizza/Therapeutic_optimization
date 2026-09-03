@@ -70,6 +70,14 @@ class EUPPredictor(UbiquitinationPredictor):
     def checkpoint_path(self) -> Path:
         return self.eup_repo_dir / EUP_CHECKPOINT
 
+    def release(self) -> None:
+        """Free EUP GPU models between WT inference and the adaptive search."""
+        self._tokenizer = None
+        self._esm_model = None
+        self._classifier = None
+        if self._torch is not None and self._device is not None and self._device.type == 'cuda':
+            self._torch.cuda.empty_cache()
+
     def prepare_repository(self) -> None:
         resolved = self.eup_repo_dir.resolve()
         if str(resolved).startswith('/content/drive/'):

@@ -37,7 +37,7 @@ def run_up1(
         variant_id='WT',
         output_dir=paths.ubi_wt,
     )
-    output = paths.tables / 'UP1_wt_ubiquitination.csv'
+    output = paths.table('UP1_wt_ubiquitination.csv')
     result.to_csv(output, index=False)
     return result
 
@@ -72,5 +72,5 @@ def run_ub2(
         from .base import STANDARD_COLUMNS
         combined = pd.DataFrame(columns=STANDARD_COLUMNS)
 
-    combined.to_csv(paths.tables / 'UB2_mutant_ubiquitination.csv', index=False)
+    combined.to_csv(paths.table('UB2_mutant_ubiquitination.csv'), index=False)
     return combined

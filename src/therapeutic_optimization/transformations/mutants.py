@@ -43,7 +43,7 @@ def generate_all_lysine_to_arginine_manifest(
             }
         ]
     )
-    manifest.to_csv(paths.tables / 'T2_all_lysine_to_arginine_manifest.csv', index=False)
+    manifest.to_csv(paths.table('T2_all_lysine_to_arginine_manifest.csv'), index=False)
     return manifest
 
 
@@ -131,7 +131,7 @@ def generate_mutant_manifest(
             'replacement_aas', 'sequence_length', 'fasta_path', 'status', 'error',
         ]
         empty = pd.DataFrame(columns=columns)
-        empty.to_csv(paths.tables / 'T2_mutation_manifest.csv', index=False)
+        empty.to_csv(paths.table('T2_mutation_manifest.csv'), index=False)
         return empty
 
     estimated = estimate_variant_count(len(sites), config)
@@ -176,7 +176,7 @@ def generate_mutant_manifest(
             )
 
     manifest = pd.DataFrame(records)
-    manifest.to_csv(paths.tables / 'T2_mutation_manifest.csv', index=False)
+    manifest.to_csv(paths.table('T2_mutation_manifest.csv'), index=False)
 
     failures = manifest['status'].eq('FAILED').sum()
     if failures:

@@ -104,5 +104,5 @@ def build_lysine_free_comparison(
         record[column] = structural_row.get(column)
 
     comparison = pd.DataFrame([record])
-    comparison.to_csv(paths.tables / 'LF1_WT_vs_all_K_to_R_comparison.csv', index=False)
+    comparison.to_csv(paths.table('LF1_WT_vs_all_K_to_R_comparison.csv'), index=False)
     return comparison
