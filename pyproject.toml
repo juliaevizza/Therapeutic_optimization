@@ -21,6 +21,12 @@ eup = [
   "accelerate>=0.21",
   "safetensors>=0.3",
 ]
+esm2 = [
+  "torch>=2.0",
+  "transformers>=4.30",
+  "accelerate>=0.21",
+  "safetensors>=0.3",
+]
 dev = ["pytest>=7.4"]
 
 [project.scripts]

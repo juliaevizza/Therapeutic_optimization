@@ -62,10 +62,39 @@ def matched_positions(wt_model, mutant_model) -> list[int]:
     return positions
 
 
-def align_mutant_to_wt(wt_model, mutant_model) -> float:
+def _positions_outside_range(positions: Iterable[int], excluded_range: tuple[int, int] | None) -> list[int]:
+    if excluded_range is None:
+        return list(positions)
+    start, end = excluded_range
+    return [position for position in positions if not start <= position <= end]
+
+
+def ca_rmsd(wt_model, mutant_model, positions: Iterable[int] | None = None) -> float:
+    """Return C-alpha RMSD after a least-squares fit over the selected residues."""
     wt = ca_atoms_by_position(wt_model)
     mut = ca_atoms_by_position(mutant_model)
-    positions = matched_positions(wt_model, mutant_model)
+    available = matched_positions(wt_model, mutant_model)
+    positions = available if positions is None else sorted(set(positions) & set(available))
+    if len(positions) < 3:
+        raise ValueError('Fewer than three matched C-alpha positions were selected for alignment.')
+    fixed = [wt[p] for p in positions]
+    moving = [mut[p] for p in positions]
+    superimposer = Superimposer()
+    superimposer.set_atoms(fixed, moving)
+    return float(superimposer.rms)
+
+
+def align_mutant_to_wt(
+    wt_model,
+    mutant_model,
+    positions: Iterable[int] | None = None,
+) -> float:
+    wt = ca_atoms_by_position(wt_model)
+    mut = ca_atoms_by_position(mutant_model)
+    available = matched_positions(wt_model, mutant_model)
+    positions = available if positions is None else sorted(set(positions) & set(available))
+    if len(positions) < 3:
+        raise ValueError('Fewer than three matched C-alpha positions were selected for alignment.')
     fixed = [wt[p] for p in positions]
     moving = [mut[p] for p in positions]
     superimposer = Superimposer()
@@ -135,7 +164,6 @@ def mutation_distance_from_centroid(model, position: int) -> float:
 
 def _plot_displacement(df: pd.DataFrame, variant_id: str, positions: list[int], path: Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.set_ylim(0, 50)
     ax.plot(df['position'], df['ca_displacement'])
     for position in positions:
         ax.axvline(position, linestyle='--')
@@ -158,6 +186,7 @@ def analyze_structure_pair(
     figure_dir: str | Path,
     local_window: int = 5,
     contact_cutoff: float = 8.0,
+    binder_range: tuple[int, int] | None = None,
 ) -> dict:
     """Compare one mutant model to WT and return interpretable preservation metrics."""
     wt_model = load_structure(wt_structure_path)
@@ -167,7 +196,15 @@ def analyze_structure_pair(
     parsed = [parse_mutation(item) for item in mutations]
     mutation_positions = [position for _wt, position, _mut in parsed]
 
-    global_ca_rmsd = align_mutant_to_wt(wt_model, mutant_model)
+    positions = matched_positions(wt_model, mutant_model)
+    global_ca_rmsd = ca_rmsd(wt_model, mutant_model)
+    binder_positions = (
+        [p for p in positions if binder_range[0] <= p <= binder_range[1]]
+        if binder_range is not None else []
+    )
+    core_positions = _positions_outside_range(positions, binder_range)
+    binder_ca_rmsd = ca_rmsd(wt_model, mutant_model, binder_positions) if binder_range else np.nan
+    core_ca_rmsd = align_mutant_to_wt(wt_model, mutant_model, core_positions)
     displacement = residue_displacements(wt_model, mutant_model)
 
     site_displacements = displacement.loc[
@@ -191,6 +228,20 @@ def analyze_structure_pair(
     retained = wt_contacts & mutant_contacts
     union = wt_contacts | mutant_contacts
     contact_change_fraction = (len(lost) + len(gained)) / max(1, len(union))
+
+    def is_intradomain(pair: tuple[int, int]) -> bool:
+        if binder_range is None:
+            return True
+        start, end = binder_range
+        first_is_binder = start <= pair[0] <= end
+        second_is_binder = start <= pair[1] <= end
+        return first_is_binder == second_is_binder
+
+    wt_intradomain = {pair for pair in wt_contacts if is_intradomain(pair)}
+    mutant_intradomain = {pair for pair in mutant_contacts if is_intradomain(pair)}
+    intradomain_union = wt_intradomain | mutant_intradomain
+    intradomain_changes = wt_intradomain ^ mutant_intradomain
+    intradomain_contact_change_fraction = len(intradomain_changes) / max(1, len(intradomain_union))
 
     local_lost_total = 0
     local_gained_total = 0
@@ -220,6 +271,8 @@ def analyze_structure_pair(
         'mutation_spec': mutation_spec,
         'mutation_count': len(mutations),
         'global_ca_rmsd': global_ca_rmsd,
+        'core_ca_rmsd': core_ca_rmsd,
+        'binder_ca_rmsd': float(binder_ca_rmsd),
         'mean_ca_displacement': float(displacement['ca_displacement'].mean()),
         'median_ca_displacement': float(displacement['ca_displacement'].median()),
         'max_ca_displacement': float(displacement['ca_displacement'].max()),
@@ -240,6 +293,7 @@ def analyze_structure_pair(
         'global_contacts_retained': len(retained),
         'global_contact_changes': len(lost) + len(gained),
         'global_contact_change_fraction': float(contact_change_fraction),
+        'intradomain_contact_change_fraction': float(intradomain_contact_change_fraction),
         'local_contacts_lost': int(local_lost_total),
         'local_contacts_gained': int(local_gained_total),
         'mean_wt_centroid_distance': float(np.mean(wt_centroid_distances)),

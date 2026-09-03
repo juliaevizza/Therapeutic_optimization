@@ -3,7 +3,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .config import MutationConfig, PredictorConfig, WorkflowConfig
+from .config import (
+    DEFAULT_ESM2_MODEL,
+    ESM2AnalysisConfig,
+    MutationConfig,
+    PredictorConfig,
+    WorkflowConfig,
+)
 from .io import normalize_sequence, read_single_fasta
 from .workflow import OptimizationWorkflow
 
@@ -13,7 +19,7 @@ def main() -> None:
     parser.add_argument('--project-root', type=Path, default=Path.cwd())
     parser.add_argument(
         '--stage',
-        choices=['all', 'lysine-free', 'T1', 'UP1', 'T2', 'S1', 'R1', 'UB2', 'R2'],
+        choices=['all', 'lysine-free', 'T1', 'UP1', 'T2', 'ESM2', 'S1', 'R1', 'UB2', 'R2'],
         default='all',
     )
     parser.add_argument('--sequence', type=str)
@@ -23,6 +29,22 @@ def main() -> None:
     parser.add_argument('--mutation-mode', choices=['single', 'combinatorial'], default='single')
     parser.add_argument('--replacement-aa', action='append', dest='replacement_aas')
     parser.add_argument('--max-combination-order', type=int, default=2)
+    parser.add_argument('--esm2-model', default=DEFAULT_ESM2_MODEL)
+    parser.add_argument('--esm2-mask-batch-size', type=int, default=4)
+    parser.add_argument('--esm2-device')
+    parser.add_argument(
+        '--esm2-dtype',
+        choices=['auto', 'float32', 'float16', 'bfloat16'],
+        default='auto',
+    )
+    parser.add_argument('--esm2-perplexity-weight', type=float, default=0.70)
+    parser.add_argument('--esm2-representation-weight', type=float, default=0.30)
+    parser.add_argument('--no-esm2-per-residue', action='store_true')
+    parser.add_argument(
+        '--skip-esm2',
+        action='store_true',
+        help='For all: skip ESM-2 analysis and preserve the legacy R2 ranking.',
+    )
     parser.add_argument(
         '--analyze-only',
         action='store_true',
@@ -39,6 +61,15 @@ def main() -> None:
             max_combination_order=args.max_combination_order,
         ),
         ubiquitination=PredictorConfig(threshold=args.threshold),
+        esm2=ESM2AnalysisConfig(
+            model_name=args.esm2_model,
+            mask_batch_size=args.esm2_mask_batch_size,
+            device=args.esm2_device,
+            dtype=args.esm2_dtype,
+            save_per_residue=not args.no_esm2_per_residue,
+            perplexity_weight=args.esm2_perplexity_weight,
+            representation_weight=args.esm2_representation_weight,
+        ),
     )
     workflow = OptimizationWorkflow(args.project_root, config)
 
@@ -81,6 +112,8 @@ def main() -> None:
         workflow.UP1()
     elif args.stage == 'T2':
         workflow.T2()
+    elif args.stage == 'ESM2':
+        workflow.ESM2()
     elif args.stage == 'S1':
         workflow.S1(predict_structures=not args.analyze_only)
     elif args.stage == 'R1':
@@ -92,10 +125,22 @@ def main() -> None:
     elif args.stage == 'all':
         up1 = workflow.UP1()
         t2 = workflow.T2(up1)
+        esm2 = None
+        if not args.skip_esm2:
+            try:
+                esm2 = workflow.ESM2(t2)
+            finally:
+                workflow.esm2_scorer.release()
         s1_metrics, s1_conserved = workflow.S1(t2, predict_structures=not args.analyze_only)
         workflow.R1(t2, s1_metrics)
         ub2 = workflow.UB2(s1_conserved)
-        workflow.R2(up1, ub2, s1_conserved)
+        workflow.R2(
+            up1,
+            ub2,
+            s1_conserved,
+            esm2_results=esm2,
+            use_saved_esm2=not args.skip_esm2,
+        )
 
 
 if __name__ == '__main__':
