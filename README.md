@@ -24,6 +24,9 @@ UP1: WT ubiquitination prediction
         |  
         v
 T2: mutation generation
+        |
+        v
+ESM2: sequence plausibility & representation comparison
         |  
         v
 S1: structure prediction & structural comparison
@@ -137,6 +140,26 @@ The `max_variants` guard prevents accidental combinatorial explosions before exp
 - `storage/mutants/fastas/<variant_id>.fasta`
 - `storage/tables/T2_mutation_manifest.csv`
 
+### ESM2 — WT-relative protein language-model scoring
+
+ESM2 masks and scores every residue in the WT and each valid T2 mutant to
+calculate masked-language-model pseudo-perplexity. It also compares final-layer
+representations globally, per residue, and specifically at mutated sites.
+
+R2 derives a bounded ESM2 compatibility score from two configurable components:
+
+- sequence plausibility: `min(1, WT pseudo-perplexity / mutant pseudo-perplexity)`
+- representation preservation: pooled WT/mutant cosine similarity clipped to `[0, 1]`
+
+The default weighting is 70% sequence plausibility and 30% representation
+preservation. ESM2 breaks ties after the ubiquitination objectives and before
+the structural preservation score; it is not a hard biological filter.
+
+**Primary outputs:**
+
+- `storage/tables/ESM2_mutant_comparison.csv`
+- `storage/esm2/per_residue/<variant_id>_esm2.csv`
+
 ### S1 — structure prediction + preservation screen
 
 The structure adapter is isolated from the metric code. `ColabFoldPredictor` wraps `colabfold_batch` and submits the WT plus all valid mutants together as one multi-FASTA batch. This avoids paying ColabFold startup and model-loading costs once per generated structure. Rank-1 results are copied back into the existing per-variant structure directories, so analysis-only reruns keep the same layout. A future AlphaFold server/local adapter can be added without touching the metrics or ranking stages. (#TODO: consider also adding a mean pooling alpha fold structures here?)
@@ -144,6 +167,8 @@ The structure adapter is isolated from the metric code. `ColabFoldPredictor` wra
 Structural metrics include:
 
 - global C-alpha RMSD after alignment
+- core C-alpha RMSD after excluding a configured mobile binder
+- binder C-alpha RMSD after aligning the binder independently (conformation, not pose)
 - mean/median/max per-residue C-alpha displacement
 - mutation-site displacement
 - local displacement around all mutated positions
@@ -163,12 +188,26 @@ The default conservation gates are workflow heuristics, not universal biological
 ```python
 StructuralThresholds(
     global_ca_rmsd_max=1.0,
+    binder_start=1,                 # inclusive; set both binder bounds to enable
+    binder_end=16,
+    binder_ca_rmsd_max=1.0,
+    core_ca_rmsd_max=1.0,
     local_mean_ca_displacement_max=1.5,
     mutation_ca_displacement_max=2.0,
     contact_change_fraction_max=0.10,
     min_mean_plddt=70.0,
 )
 ```
+
+When a binder range is configured, the structural gate is domain-aware. It aligns the
+E3/core without the binder, independently aligns the binder to measure its internal
+conformation, and excludes binder-to-core contacts from the contact-change gate. The
+binder may therefore translate or rotate relative to the E3 without failing solely due
+to that new pose. `global_ca_rmsd` and global contacts remain in the output as diagnostic
+metrics, but the gate uses `core_ca_rmsd`, `binder_ca_rmsd`, and
+`intradomain_contact_change_fraction` instead.
+`structural_failure_reasons` records the exact failed gates, including
+`BINDER_CONFORMATION_RMSD`, so a rejection is directly interpretable.
 
 Keep these as top-level hyperparameters and tune them against proteins/controls for your actual use case.
 
@@ -217,6 +256,8 @@ R2 compares UP1 with UB2 and calculates, for every structurally conserved mutant
 - WT positive sites still present
 - newly positive lysines that crossed the threshold in the mutant
 - structural preservation score
+- ESM2 pseudo-perplexity and representation comparison metrics
+- bounded ESM2 compatibility score
 
 The final groups are:
 
@@ -298,10 +339,16 @@ Then it executes the stages visibly:
 t1 = workflow.T1(WT_SEQUENCE, PROTEIN_ID)
 up1 = workflow.UP1()
 t2 = workflow.T2(up1)
+esm2 = workflow.ESM2(t2)
 s1_metrics, s1_conserved = workflow.S1(t2)
 r1 = workflow.R1(t2, s1_metrics)
 ub2 = workflow.UB2(s1_conserved)
-r2_all, optimized, needs_more = workflow.R2(up1, ub2, s1_conserved)
+r2_all, optimized, needs_more = workflow.R2(
+    up1,
+    ub2,
+    s1_conserved,
+    esm2_results=esm2,
+)
 ```
 
 ## CLI

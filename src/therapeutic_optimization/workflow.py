@@ -6,6 +6,7 @@ import pandas as pd
 
 from .config import ProjectPaths, WorkflowConfig
 from .comparison import build_lysine_free_comparison
+from .esm2_analysis import ESM2Scorer, run_esm2_analysis
 from .ranking import run_r1, run_r2
 from .structural_analysis import build_structure_predictor, run_s1
 from .transformations import (
@@ -17,7 +18,7 @@ from .ubiquitination_prediction import build_predictor, run_ub2, run_up1
 
 
 class OptimizationWorkflow:
-    """Top-level orchestration with explicit T1/UP1/T2/S1/R1/UB2/R2 stages."""
+    """Top-level orchestration with explicit T1/UP1/T2/ESM2/S1/R1/UB2/R2 stages."""
 
     def __init__(
         self,
@@ -29,6 +30,7 @@ class OptimizationWorkflow:
         self.config = config or WorkflowConfig()
         self._ubi_predictor = None
         self._structure_predictor = None
+        self._esm2_scorer = None
 
     @property
     def ubi_predictor(self):
@@ -41,6 +43,12 @@ class OptimizationWorkflow:
         if self._structure_predictor is None:
             self._structure_predictor = build_structure_predictor(self.config.structure)
         return self._structure_predictor
+
+    @property
+    def esm2_scorer(self) -> ESM2Scorer:
+        if self._esm2_scorer is None:
+            self._esm2_scorer = ESM2Scorer(self.config.esm2)
+        return self._esm2_scorer
 
     def T1(self, sequence: str, protein_id: str = 'WT') -> dict:
         return prepare_wt_input(sequence, protein_id, self.paths)
@@ -55,6 +63,16 @@ class OptimizationWorkflow:
 
     def T2_all_lysine_to_arginine(self) -> pd.DataFrame:
         return generate_all_lysine_to_arginine_manifest(self.paths)
+
+    def ESM2(self, manifest: pd.DataFrame | None = None) -> pd.DataFrame:
+        """Compare T2 mutants with WT using pseudo-perplexity and embeddings."""
+        if manifest is None:
+            manifest = pd.read_csv(self.paths.tables / 'T2_mutation_manifest.csv')
+        return run_esm2_analysis(
+            manifest,
+            self.paths,
+            scorer=self.esm2_scorer,
+        )
 
     def S1(
         self,
@@ -92,6 +110,8 @@ class OptimizationWorkflow:
         up1: pd.DataFrame | None = None,
         ub2: pd.DataFrame | None = None,
         s1_conserved: pd.DataFrame | None = None,
+        esm2_results: pd.DataFrame | None = None,
+        use_saved_esm2: bool = True,
     ):
         if up1 is None:
             up1 = pd.read_csv(self.paths.tables / 'UP1_wt_ubiquitination.csv')
@@ -99,26 +119,53 @@ class OptimizationWorkflow:
             ub2 = pd.read_csv(self.paths.tables / 'UB2_mutant_ubiquitination.csv')
         if s1_conserved is None:
             s1_conserved = pd.read_csv(self.paths.tables / 'S1_structurally_conserved.csv')
-        return run_r2(up1, ub2, s1_conserved, self.paths)
+        if esm2_results is None and use_saved_esm2:
+            esm2_path = self.paths.tables / 'ESM2_mutant_comparison.csv'
+            if esm2_path.exists():
+                esm2_results = pd.read_csv(esm2_path)
+        return run_r2(
+            up1,
+            ub2,
+            s1_conserved,
+            self.paths,
+            esm2_results=esm2_results,
+            esm2_config=self.config.esm2,
+        )
 
     def run_all(
         self,
         sequence: str,
         protein_id: str = 'WT',
         predict_structures: bool = True,
+        analyze_esm2: bool = True,
     ) -> dict[str, object]:
         """Execute the complete workflow. GPU-heavy stages still fail loudly if dependencies are missing."""
         t1 = self.T1(sequence, protein_id)
         up1 = self.UP1()
         t2 = self.T2(up1)
+        esm2 = None
+        if analyze_esm2:
+            try:
+                esm2 = self.ESM2(t2)
+            finally:
+                # This model is not needed again in run_all; release its memory
+                # before structure prediction and later EUP mutant inference.
+                self.esm2_scorer.release()
         s1_metrics, s1_conserved = self.S1(t2, predict_structures=predict_structures)
         r1 = self.R1(t2, s1_metrics)
         ub2 = self.UB2(s1_conserved)
-        r2_all, r2_optimized, r2_needs = self.R2(up1, ub2, s1_conserved)
+        r2_all, r2_optimized, r2_needs = self.R2(
+            up1,
+            ub2,
+            s1_conserved,
+            esm2_results=esm2,
+            use_saved_esm2=analyze_esm2,
+        )
         return {
             'T1': t1,
             'UP1': up1,
             'T2': t2,
+            'ESM2': esm2,
             'S1_metrics': s1_metrics,
             'S1_conserved': s1_conserved,
             'R1': r1,
