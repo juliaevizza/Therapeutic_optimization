@@ -7,33 +7,6 @@ The repository is intentionally organized so the notebook is a **lightweight use
 ## Pipeline logic
 
 ```text
-User amino-acid sequence
-        |
-        v
-T1  input transformation
-        |  -> storage/inputs/wt_input.fasta
-        v
-UP1 WT ubiquitination prediction
-        |  -> UP1_wt_ubiquitination.csv
-        v
-T2  mutation generation
-        |  -> mutant FASTAs + T2_mutation_manifest.csv
-        v
-S1  structure prediction + structural comparison
-        |  -> S1_structural_metrics.csv
-        |  -> S1_structurally_conserved.csv
-        v
-R1  structural screen accounting
-        |  -> R1_structural_screen.csv
-        v
-UB2 mutant ubiquitination prediction
-        |  -> UB2_mutant_ubiquitination.csv
-        v
-R2  final ranking
-        |  -> R2_optimized.csv
-        |  -> R2_needs_further_optimization.csv
-        `  -> R2_all_ranked.csv
-```
 
 ### Important input correction
 
