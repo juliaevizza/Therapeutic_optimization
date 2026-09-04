@@ -4,7 +4,7 @@ import math
 
 import pandas as pd
 
-from ..config import ProjectPaths
+from ..config import ESM2AnalysisConfig, ProjectPaths
 from ..io import parse_mutation
 
 
@@ -21,11 +21,15 @@ def run_r1(
             'analysis_status',
             'analysis_error',
             'structure_pass',
+            'structural_failure_reasons',
             'structural_preservation_score',
             'global_ca_rmsd',
+            'core_ca_rmsd',
+            'binder_ca_rmsd',
             'local_mean_ca_displacement',
             'mutation_ca_displacement_max',
             'global_contact_change_fraction',
+            'intradomain_contact_change_fraction',
             'mutant_mean_plddt',
         ]
         if column in s1_metrics.columns
@@ -37,12 +41,14 @@ def run_r1(
     r1['R1_status'] = r1['structure_pass'].map(
         {True: 'ADVANCE_TO_UB2', False: 'DROPPED_STRUCTURAL'}
     )
+    if 'screen_status' in r1.columns:
+        r1.loc[r1['screen_status'].eq('ESM2_REJECTED'), 'R1_status'] = 'DROPPED_ESM2'
     r1 = r1.sort_values(
         ['structure_pass', 'structural_preservation_score'],
         ascending=[False, False],
         na_position='last',
     ).reset_index(drop=True)
-    r1.to_csv(paths.tables / 'R1_structural_screen.csv', index=False)
+    r1.to_csv(paths.table('R1_structural_screen.csv'), index=False)
     return r1
 
 
@@ -55,11 +61,120 @@ def _site_probability_map(df: pd.DataFrame) -> dict[int, float]:
     }
 
 
+def attach_esm2_scores(
+    ranked: pd.DataFrame,
+    esm2_results: pd.DataFrame,
+    config: ESM2AnalysisConfig,
+) -> pd.DataFrame:
+    """Attach bounded ESM-2 compatibility components to R2 candidates.
+
+    The perplexity component is ``min(1, WT_PP / mutant_PP)``.  A mutant that
+    is at least as plausible as WT therefore receives 1, while less plausible
+    mutants are penalized smoothly.  Pooled cosine similarity is clipped to
+    [0, 1] for the representation-preservation component.  Failed or missing
+    ESM-2 analyses remain NaN rather than being treated as biological failures.
+    """
+    config.validate()
+    if 'variant_id' not in esm2_results.columns:
+        raise ValueError('ESM-2 results are missing required column: variant_id')
+    if esm2_results['variant_id'].astype(str).duplicated().any():
+        duplicates = sorted(
+            esm2_results.loc[
+                esm2_results['variant_id'].astype(str).duplicated(keep=False),
+                'variant_id',
+            ].astype(str).unique()
+        )
+        raise ValueError(f'ESM-2 results contain duplicate variant IDs: {duplicates}')
+
+    source_to_target = {
+        'model_name': 'esm2_model_name',
+        'delta_pseudo_log_likelihood': 'esm2_delta_pseudo_log_likelihood',
+        'delta_mean_log_probability': 'esm2_delta_mean_log_probability',
+        'wt_pseudo_perplexity': 'esm2_wt_pseudo_perplexity',
+        'mutant_pseudo_perplexity': 'esm2_mutant_pseudo_perplexity',
+        'delta_pseudo_perplexity': 'esm2_delta_pseudo_perplexity',
+        'pseudo_perplexity_percent_change': 'esm2_pseudo_perplexity_percent_change',
+        'mean_residue_representation_cosine_similarity': (
+            'esm2_mean_residue_representation_cosine_similarity'
+        ),
+        'pooled_representation_cosine_similarity': (
+            'esm2_pooled_representation_cosine_similarity'
+        ),
+        'pooled_representation_cosine_distance': (
+            'esm2_pooled_representation_cosine_distance'
+        ),
+        'mutation_site_representation_cosine_similarity': (
+            'esm2_mutation_site_representation_cosine_similarity'
+        ),
+        'mutation_site_representation_cosine_distance': (
+            'esm2_mutation_site_representation_cosine_distance'
+        ),
+        'analysis_status': 'esm2_analysis_status',
+        'analysis_error': 'esm2_analysis_error',
+    }
+    available_columns = [
+        'variant_id',
+        *(column for column in source_to_target if column in esm2_results.columns),
+    ]
+    esm2 = esm2_results[available_columns].copy()
+    esm2['variant_id'] = esm2['variant_id'].astype(str)
+    esm2 = esm2.rename(columns=source_to_target)
+    result = ranked.copy()
+    result['variant_id'] = result['variant_id'].astype(str)
+    result = result.merge(esm2, on='variant_id', how='left', validate='one_to_one')
+
+    required_metrics = {
+        'esm2_delta_mean_log_probability',
+        'esm2_pooled_representation_cosine_similarity',
+    }
+    missing_metrics = required_metrics - set(result.columns)
+    if missing_metrics:
+        raise ValueError(
+            'ESM-2 results are missing scoring columns: '
+            f'{sorted(missing_metrics)}'
+        )
+
+    delta_mean = pd.to_numeric(
+        result['esm2_delta_mean_log_probability'], errors='coerce'
+    )
+    pooled_cosine = pd.to_numeric(
+        result['esm2_pooled_representation_cosine_similarity'], errors='coerce'
+    )
+    status_pass = (
+        result['esm2_analysis_status'].eq('PASS')
+        if 'esm2_analysis_status' in result.columns
+        else pd.Series(True, index=result.index)
+    )
+    valid = status_pass & delta_mean.notna() & pooled_cosine.notna()
+
+    result['esm2_perplexity_plausibility_score'] = float('nan')
+    result.loc[valid, 'esm2_perplexity_plausibility_score'] = delta_mean.loc[
+        valid
+    ].map(lambda value: math.exp(min(float(value), 0.0)))
+    result['esm2_representation_preservation_score'] = float('nan')
+    result.loc[valid, 'esm2_representation_preservation_score'] = pooled_cosine.loc[
+        valid
+    ].clip(lower=0.0, upper=1.0)
+
+    total_weight = config.perplexity_weight + config.representation_weight
+    result['esm2_compatibility_score'] = float('nan')
+    result.loc[valid, 'esm2_compatibility_score'] = (
+        config.perplexity_weight
+        * result.loc[valid, 'esm2_perplexity_plausibility_score']
+        + config.representation_weight
+        * result.loc[valid, 'esm2_representation_preservation_score']
+    ) / total_weight
+    result['esm2_score_available'] = valid
+    return result
+
+
 def run_r2(
     up1: pd.DataFrame,
     ub2: pd.DataFrame,
     s1_conserved: pd.DataFrame,
     paths: ProjectPaths,
+    esm2_results: pd.DataFrame | None = None,
+    esm2_config: ESM2AnalysisConfig | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     R2: compare WT and mutant ubiquitination predictions.
@@ -132,29 +247,43 @@ def run_r2(
 
     ranked = pd.DataFrame(records)
     if ranked.empty:
-        ranked.to_csv(paths.tables / 'R2_all_ranked.csv', index=False)
-        ranked.to_csv(paths.tables / 'R2_optimized.csv', index=False)
-        ranked.to_csv(paths.tables / 'R2_needs_further_optimization.csv', index=False)
+        ranked.to_csv(paths.table('R2_all_ranked.csv'), index=False)
+        ranked.to_csv(paths.table('R2_optimized.csv'), index=False)
+        ranked.to_csv(paths.table('R2_needs_further_optimization.csv'), index=False)
         return ranked, ranked.copy(), ranked.copy()
+
+    if esm2_results is not None:
+        ranked = attach_esm2_scores(
+            ranked,
+            esm2_results,
+            esm2_config or ESM2AnalysisConfig(),
+        )
 
     group_order = {'optimized': 0, 'needs_further_optimization': 1}
     ranked['_group_order'] = ranked['R2_group'].map(group_order)
+    sort_columns = [
+        '_group_order',
+        'ubiquitination_burden_reduction',
+        'mutant_positive_burden',
+        'new_positive_count',
+    ]
+    ascending = [True, False, True, True]
+    if esm2_results is not None:
+        sort_columns.append('esm2_compatibility_score')
+        ascending.append(False)
+    sort_columns.append('structural_preservation_score')
+    ascending.append(False)
     ranked = ranked.sort_values(
-        [
-            '_group_order',
-            'ubiquitination_burden_reduction',
-            'mutant_positive_burden',
-            'new_positive_count',
-            'structural_preservation_score',
-        ],
-        ascending=[True, False, True, True, False],
+        sort_columns,
+        ascending=ascending,
+        na_position='last',
     ).drop(columns='_group_order').reset_index(drop=True)
     ranked.insert(0, 'final_rank', range(1, len(ranked) + 1))
 
     optimized = ranked.loc[ranked['R2_group'].eq('optimized')].copy()
     needs = ranked.loc[ranked['R2_group'].eq('needs_further_optimization')].copy()
 
-    ranked.to_csv(paths.tables / 'R2_all_ranked.csv', index=False)
-    optimized.to_csv(paths.tables / 'R2_optimized.csv', index=False)
-    needs.to_csv(paths.tables / 'R2_needs_further_optimization.csv', index=False)
+    ranked.to_csv(paths.table('R2_all_ranked.csv'), index=False)
+    optimized.to_csv(paths.table('R2_optimized.csv'), index=False)
+    needs.to_csv(paths.table('R2_needs_further_optimization.csv'), index=False)
     return ranked, optimized, needs

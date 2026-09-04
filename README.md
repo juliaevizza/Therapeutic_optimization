@@ -1,12 +1,113 @@
 # Therapeutic Optimization
 
-A modular protein optimization workflow for identifying predicted ubiquitination sites, generating lysine-removal mutants, filtering those mutants for structural preservation, re-running ubiquitination prediction, and ranking the survivors.
+This modular protein optimization tool chain for identifying predicted ubiquitination sites, generating lysine-removal mutants, filtering those mutants for structural preservation, re-running ubiquitination prediction, and ranking the survivors.
 
 The repository is intentionally organized so the notebook is a **lightweight user interface** while the heavy lifting lives in the installable Python package under `src/therapeutic_optimization/`.
 
-## Pipeline logic
+For use, simple open the google colab attached, connect your runtime to a GPU, and click run all. You will first be prompted for the wild type sequence and hyper parameters before imports, so that you may click run and step away while all the computing occurs. There is an option in the code to save the result to drive that is automatically true. If you are testing the code for and don't want results accumulating in your drive, control+F "SAVE_TO_DRIVE" and set it to false. 
+
+ <a href="https://colab.research.google.com/github/juliaevizza/Therapeutic_optimization/blob/main/notebooks/therapeutic_optimization_colab.ipynb">
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in colab!" height="40">
+</a>
+
+## Toolchain logic
+
+The first code cell in `notebooks/therapeutic_optimization_colab.ipynb` now selects
+`WORKFLOW_MODE = "sophisticated"` (the notebook default) or `"basic"` (the original
+workflow). Rerun the cells below the switch after changing it. Python and CLI
+callers retain `basic` as their default.
+
+Every workflow stage has an explicit `_basic` and `_complex` entry point, such as
+`T2_basic`, `T2_complex`, `S1_basic`, and `S1_complex`. Unsuffixed methods dispatch
+according to `WorkflowConfig.mode`. Workflow output tables carry the same suffix,
+for example `T2_basic_mutation_manifest.csv` and `T2_complex_mutation_manifest.csv`.
+Use `workflow.paths.table("T2_mutation_manifest.csv")` to resolve the selected name.
+Standalone low-level functions with a default `ProjectPaths` retain their legacy
+unsuffixed names; stage-contract filenames below use that legacy spelling.
+
+In sophisticated mode, `T2_complex` runs an adaptive loop:
+
+1. Select WT lysines whose UP1 probability is strictly above the mutation threshold.
+2. Mutate **all selected sites to R**. Other residues, including unselected lysines,
+   remain unchanged.
+3. Calculate WT-relative ESM-2 pseudo-perplexity and representation metrics. Require
+   **`mean_residue_representation_cosine_similarity > 0.9995`** before predicting
+   structure. This cutoff applies to mean residue cosine similarity, not pooled
+   similarity or pseudo-perplexity. Perplexity changes are recorded; the optional
+   `max_pseudo_perplexity_percent_change` adds a separate limit (`0.0` forbids increases).
+4. Run structural prediction/comparison for eligible candidates and count only
+   mutants that pass the existing S1 structural thresholds.
+5. Introduce H at one site at a time, then every pair, then triples through all
+   sites. Introduce Q, then E, then C the same way: for each new amino acid,
+   enumerate its multiplicity from 1 through n and fill the remaining sites with
+   every combination of earlier amino acids. Previously tested assignments are
+   never repeated. The final assignment is all C.
+6. Stop immediately at **25 structural survivors**, or when this five-amino-acid
+   space is exhausted. Only survivors continue to UB2 and R2.
+
+The explicit replacement order is **arginine → histidine → glutamine → glutamic
+acid → cysteine (`R, H, Q, E, C`)**, with no later replacements. For two sites, the
+first candidates are `RR, HR, RH, HH, QR, QH, RQ, HQ, QQ`.
+
+Candidates are generated lazily, so early stopping avoids materializing the full
+`5 ** site_count` space. Basic mode's `max_variants` and `max_combination_order`
+do not limit this search. An optional `max_candidates` bounds attempted candidates;
+the default is `None`. Exhaustion or a candidate limit can yield fewer than 25.
+
+Each completed attempt updates the cumulative T2, ESM2, and S1 tables and
+`storage/tables/T2_complex_search_summary.json`. The summary distinguishes
+`TARGET_REACHED`, `EXHAUSTED`, `NO_PROBLEMATIC_SITES`, `CANDIDATE_LIMIT`, and failures.
+ESM-2 failures stop the run rather than sending unscored candidates to structure
+prediction. Saved tables preserve progress for inspection; rerunning T2 starts a
+fresh search. Later ESM2/S1 notebook cells reuse the in-memory completed search.
+R1 distinguishes `DROPPED_ESM2` from structural dropouts. The ESM-2 screen is a
+computational prescreen; the S1 structural gates still determine survival.
+
+```python
+from therapeutic_optimization import ComplexSearchConfig, WorkflowConfig, OptimizationWorkflow
+
+config = WorkflowConfig(
+    mode="sophisticated",
+    complex_search=ComplexSearchConfig(
+        replacement_aas=("R", "H", "Q", "E", "C"),
+        target_survivors=25,
+        min_mean_residue_cosine_similarity=0.9995,
+    ),
+)
+workflow = OptimizationWorkflow("my_run", config)
+results = workflow.run_all(WT_SEQUENCE)
+```
+
+The original basic workflow follows this sequence:
 
 ```text
+User amino-acid sequence
+        |
+        v
+T1  input transformation
+        |  -> storage/inputs/wt_input.fasta
+        v
+UP1 WT ubiquitination prediction
+        |  -> UP1_wt_ubiquitination.csv
+        v
+T2  mutation generation
+        |  -> mutant FASTAs + T2_mutation_manifest.csv
+        v
+S1  structure prediction + structural comparison
+        |  -> S1_structural_metrics.csv
+        |  -> S1_structurally_conserved.csv
+        v
+R1  structural screen accounting
+        |  -> R1_structural_screen.csv
+        v
+UB2 mutant ubiquitination prediction
+        |  -> UB2_mutant_ubiquitination.csv
+        v
+R2  final ranking
+        |  -> R2_optimized.csv
+        |  -> R2_needs_further_optimization.csv
+        `  -> R2_all_ranked.csv
+```
 
 ### Important input correction
 
@@ -87,7 +188,7 @@ This makes T2 and R2 predictor-independent.
 
 T2 reads UP1, selects lysines above the configured probability threshold, and generates FASTAs.
 
-Two modes already exist:
+Basic mode preserves two mutation-generation strategies:
 
 - `single`: mutate one selected lysine at a time.
 - `combinatorial`: generate mutation orders 1 through `max_combination_order`, including all configured replacement amino-acid combinations.
@@ -111,21 +212,42 @@ The `max_variants` guard prevents accidental combinatorial explosions before exp
 - `storage/mutants/fastas/<variant_id>.fasta`
 - `storage/tables/T2_mutation_manifest.csv`
 
-Variant IDs are deterministic. Examples:
+### ESM2 — WT-relative protein language-model scoring
 
-```text
-K16A
-K16A__K43A
-K16R__K43A
-```
+ESM2 masks and scores every residue in the WT and each valid T2 mutant to
+calculate masked-language-model pseudo-perplexity. It also compares final-layer
+representations globally, per residue, and specifically at mutated sites.
+
+R2 derives a bounded ESM2 compatibility score from two configurable components:
+
+- sequence plausibility: `min(1, WT pseudo-perplexity / mutant pseudo-perplexity)`
+- representation preservation: pooled WT/mutant cosine similarity clipped to `[0, 1]`
+
+The default weighting is 70% sequence plausibility and 30% representation
+preservation. ESM2 breaks ties after the ubiquitination objectives and before
+the structural preservation score. Basic mode uses ESM2 for ranking;
+sophisticated mode additionally applies the mean-residue cosine prescreen above.
+
+**Primary outputs:**
+
+- `storage/tables/ESM2_mutant_comparison.csv`
+- `storage/esm2/per_residue/<variant_id>_esm2.csv`
 
 ### S1 — structure prediction + preservation screen
 
-The structure adapter is isolated from the metric code. `ColabFoldPredictor` currently wraps `colabfold_batch`; a future AlphaFold server/local adapter can be added without touching the metrics or ranking stages.
+The structure adapter is isolated from the metric code. In basic mode,
+`ColabFoldPredictor` submits WT and all valid mutants in one multi-FASTA batch.
+Sophisticated mode predicts one eligible mutant at a time so it can stop exactly
+at the target. It predicts WT once per search, uses separate batch directories
+to prevent query-name collisions, and releases ESM-2 before ColabFold runs.
+Rank-1 results are copied into per-variant structure directories. The per-candidate
+search incurs repeated ColabFold startup and ESM-2 model-loading costs.
 
 Structural metrics include:
 
 - global C-alpha RMSD after alignment
+- core C-alpha RMSD after excluding a configured mobile binder
+- binder C-alpha RMSD after aligning the binder independently (conformation, not pose)
 - mean/median/max per-residue C-alpha displacement
 - mutation-site displacement
 - local displacement around all mutated positions
@@ -145,12 +267,26 @@ The default conservation gates are workflow heuristics, not universal biological
 ```python
 StructuralThresholds(
     global_ca_rmsd_max=1.0,
+    binder_start=1,                 # inclusive; set both binder bounds to enable
+    binder_end=16,
+    binder_ca_rmsd_max=1.0,
+    core_ca_rmsd_max=1.0,
     local_mean_ca_displacement_max=1.5,
     mutation_ca_displacement_max=2.0,
     contact_change_fraction_max=0.10,
     min_mean_plddt=70.0,
 )
 ```
+
+When a binder range is configured, the structural gate is domain-aware. It aligns the
+E3/core without the binder, independently aligns the binder to measure its internal
+conformation, and excludes binder-to-core contacts from the contact-change gate. The
+binder may therefore translate or rotate relative to the E3 without failing solely due
+to that new pose. `global_ca_rmsd` and global contacts remain in the output as diagnostic
+metrics, but the gate uses `core_ca_rmsd`, `binder_ca_rmsd`, and
+`intradomain_contact_change_fraction` instead.
+`structural_failure_reasons` records the exact failed gates, including
+`BINDER_CONFORMATION_RMSD`, so a rejection is directly interpretable.
 
 Keep these as top-level hyperparameters and tune them against proteins/controls for your actual use case.
 
@@ -199,6 +335,8 @@ R2 compares UP1 with UB2 and calculates, for every structurally conserved mutant
 - WT positive sites still present
 - newly positive lysines that crossed the threshold in the mutant
 - structural preservation score
+- ESM2 pseudo-perplexity and representation comparison metrics
+- bounded ESM2 compatibility score
 
 The final groups are:
 
@@ -280,15 +418,29 @@ Then it executes the stages visibly:
 t1 = workflow.T1(WT_SEQUENCE, PROTEIN_ID)
 up1 = workflow.UP1()
 t2 = workflow.T2(up1)
+esm2 = workflow.ESM2(t2)
 s1_metrics, s1_conserved = workflow.S1(t2)
 r1 = workflow.R1(t2, s1_metrics)
 ub2 = workflow.UB2(s1_conserved)
-r2_all, optimized, needs_more = workflow.R2(up1, ub2, s1_conserved)
+r2_all, optimized, needs_more = workflow.R2(
+    up1,
+    ub2,
+    s1_conserved,
+    esm2_results=esm2,
+)
 ```
 
 ## CLI
 
 After installation:
+
+Run the new search with `therapeutic-optimize --mode sophisticated --stage all
+--sequence "YOUR_SEQUENCE"`. Use `--complex-replacement-order R H Q E C`,
+`--target-survivors 25`, `--min-mean-residue-cosine 0.9995`,
+`--max-perplexity-percent-change`, or `--max-complex-candidates` to adjust it.
+`--skip-esm2` is available only in basic mode. In sophisticated mode, `--stage T2`
+includes the adaptive ESM2/S1 loop. The following commands select the basic
+workflow by default; use the same `--mode` for every stage of a run.
 
 ```bash
 pip install -e '.[eup]'
@@ -307,6 +459,50 @@ For existing ColabFold outputs:
 therapeutic-optimize --stage S1 --analyze-only
 ```
 
+## WT versus completely lysine-free K-to-R comparison
+
+The dedicated `lysine-free` workflow creates exactly one mutant by replacing every
+lysine (`K`) in the WT sequence with arginine (`R`). It then runs WT
+ubiquitination prediction, predicts and compares the WT/mutant structures, records
+the R1 structural decision, scores the mutant, and writes a combined comparison
+table. Mutant scoring is retained even when the structure does not pass the
+structural gate.
+
+Clone, install, and run it from a terminal:
+
+```bash
+git clone https://github.com/juliaevizza/Therapeutic_optimization.git
+cd Therapeutic_optimization
+python -m pip install -e '.[eup]'
+
+therapeutic-optimize \
+  --stage lysine-free \
+  --sequence-file /path/to/wt_sequence.fasta \
+  --protein-id my_protein \
+  --project-root ./lysine_free_run
+```
+
+`--sequence-file` accepts either a FASTA file or a plain-text amino-acid
+sequence. You can instead pass a sequence directly with `--sequence
+"MSEQUENCE..."`. If T1 has already created
+`storage/inputs/wt_input.fasta` beneath the project root, the sequence argument
+can be omitted on later runs.
+
+The main outputs are:
+
+- `storage/mutants/fastas/ALL_K_TO_R.fasta`
+- `storage/tables/T2_all_lysine_to_arginine_manifest.csv`
+- `storage/tables/UP1_wt_ubiquitination.csv`
+- `storage/tables/S1_structural_metrics.csv`
+- `storage/tables/R1_structural_screen.csv`
+- `storage/tables/UB2_mutant_ubiquitination.csv`
+- `storage/tables/LF1_WT_vs_all_K_to_R_comparison.csv`
+
+The final comparison table contains WT and mutant ubiquitination counts and
+probability burdens alongside RMSD, local displacement, contact-change, pLDDT,
+radius-of-gyration, and structural-preservation metrics. ColabFold and the EUP
+model still require the GPU/runtime dependencies described above.
+
 ## Adding another ubiquitination predictor
 
 1. Create an adapter subclassing `UbiquitinationPredictor`.
@@ -318,7 +514,7 @@ T2, UB2, and R2 require no changes.
 
 ## Adding another structure predictor
 
-1. Create an adapter exposing `predict(fasta_path, output_dir) -> structure_path`.
+1. Create an adapter exposing `predict_batch(predictions, batch_output_dir) -> {variant_id: structure_path}`.
 2. Register it in `structural_analysis/pipeline.py::build_structure_predictor`.
 3. Keep the rank-1 output as PDB/CIF so `metrics.py` can consume it.
 

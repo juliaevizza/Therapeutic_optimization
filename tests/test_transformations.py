@@ -5,7 +5,11 @@ import pytest
 
 from therapeutic_optimization.config import MutationConfig, ProjectPaths
 from therapeutic_optimization.io import apply_mutations, normalize_sequence, read_single_fasta
-from therapeutic_optimization.transformations import generate_mutant_manifest, prepare_wt_input
+from therapeutic_optimization.transformations import (
+    generate_all_lysine_to_arginine_manifest,
+    generate_mutant_manifest,
+    prepare_wt_input,
+)
 
 
 def fake_up1() -> pd.DataFrame:
@@ -79,3 +83,22 @@ def test_variant_guard(tmp_path):
                 max_variants=3,
             ),
         )
+
+
+def test_generate_all_lysine_to_arginine_manifest(tmp_path):
+    paths = ProjectPaths.from_root(tmp_path)
+    prepare_wt_input('AKAAKAAK', 'WT', paths)
+    manifest = generate_all_lysine_to_arginine_manifest(paths)
+
+    assert manifest['variant_id'].tolist() == ['ALL_K_TO_R']
+    assert manifest.iloc[0]['mutation_spec'] == 'K2R;K5R;K8R'
+    assert int(manifest.iloc[0]['mutation_count']) == 3
+    _, sequence = read_single_fasta(paths.mutant_fastas / 'ALL_K_TO_R.fasta')
+    assert sequence == 'ARAARAAR'
+
+
+def test_all_lysine_to_arginine_rejects_already_lysine_free_wt(tmp_path):
+    paths = ProjectPaths.from_root(tmp_path)
+    prepare_wt_input('ARAARAAR', 'WT', paths)
+    with pytest.raises(ValueError, match='already lysine-free'):
+        generate_all_lysine_to_arginine_manifest(paths)
