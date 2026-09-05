@@ -1,3 +1,12 @@
+#TODO: not sure if i can replicate this myself. need to really dig into
+#whats going on with these functions
+
+
+
+
+
+
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,6 +19,7 @@ from Bio.PDB import MMCIFParser, PDBParser, Superimposer
 
 from ..io import parse_mutation
 
+
 RESIDUE_VOLUME = {
     'A': 67.0, 'R': 148.0, 'N': 96.0, 'D': 91.0, 'C': 86.0,
     'Q': 114.0, 'E': 109.0, 'G': 48.0, 'H': 118.0, 'I': 124.0,
@@ -19,7 +29,7 @@ RESIDUE_VOLUME = {
 
 DISPLACEMENT_Y_LIMITS = (0.0, 50.0)
 
-
+#need help
 def load_structure(path: str | Path):
     path = Path(path)
     suffix = path.suffix.lower()

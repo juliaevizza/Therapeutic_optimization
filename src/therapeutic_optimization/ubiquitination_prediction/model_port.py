@@ -6,19 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 
-STANDARD_COLUMNS = [
-    'variant_id',
-    'protein_id',
-    'predictor',
-    'lysine_position',
-    'site',
-    'sequence_context',
-    'probability',
-    'threshold',
-    'is_positive',
-]
-
-
+#TODO look over
 class UbiquitinationPredictor(ABC):
     """Predictor interface so EUP can be replaced without changing T2/R2."""
 

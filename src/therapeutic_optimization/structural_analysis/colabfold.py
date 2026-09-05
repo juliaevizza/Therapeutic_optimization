@@ -9,7 +9,6 @@ from pathlib import Path
 
 from ..io import read_single_fasta
 
-
 @dataclass(frozen=True)
 class StructurePrediction:
     variant_id: str
@@ -17,6 +16,8 @@ class StructurePrediction:
     output_dir: Path
 
 
+
+#look over class and how it compares to standard code surronding colabfold/alphafold
 class ColabFoldPredictor:
     """Thin structure-predictor adapter around the colabfold_batch CLI."""
 
@@ -104,32 +105,4 @@ class ColabFoldPredictor:
             structures[prediction.variant_id] = destination
         return structures
 
-def find_rank1_structure(output_dir: str | Path, query_name: str | None = None) -> Path:
-    """Locate the highest-ranked PDB/CIF emitted by ColabFold."""
-    output_dir = Path(output_dir)
-    if not output_dir.exists():
-        raise FileNotFoundError(output_dir)
-
-    files = [
-        path
-        for path in output_dir.rglob('*')
-        if path.is_file() and path.suffix.lower() in {'.pdb', '.cif', '.mmcif'}
-        and (query_name is None or path.name.startswith(f'{query_name}_'))
-    ]
-    if not files:
-        query_detail = f' for query {query_name!r}' if query_name is not None else ''
-        raise FileNotFoundError(f'No PDB/CIF structure found{query_detail} under {output_dir}.')
-
-    def priority(path: Path) -> tuple[int, str]:
-        name = path.name.lower()
-        if 'rank_001' in name or 'rank_1' in name:
-            return (0, name)
-        if 'ranked_0' in name:
-            return (1, name)
-        if 'unrelaxed' in name and 'rank' in name:
-            return (2, name)
-        if 'relaxed' in name and 'rank' in name:
-            return (3, name)
-        return (9, name)
-
-    return sorted(files, key=priority)[0]
+#metrics

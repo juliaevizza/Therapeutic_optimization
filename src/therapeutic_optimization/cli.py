@@ -1,3 +1,7 @@
+#I do not understand the parsing here!!!
+#TODO: determine what the parsing here is doing, replicate to fit my configuration
+
+
 from __future__ import annotations
 
 import argparse

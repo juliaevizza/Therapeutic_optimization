@@ -4,20 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .config import ProjectPaths, WorkflowConfig
-from .comparison import build_lysine_free_comparison
-from .complex_search import run_complex_search, esm2_gate
-from .esm2_analysis import ESM2Scorer, run_esm2_analysis
-from .ranking import run_r1, run_r2
-from .io import read_single_fasta
-from .structural_analysis.colabfold import find_rank1_structure
-from .structural_analysis import build_structure_predictor, run_s1
-from .transformations import (
-    generate_all_lysine_to_arginine_manifest,
-    generate_mutant_manifest,
-    prepare_wt_input,
-)
-from .ubiquitination_prediction import build_predictor, run_ub2, run_up1
+from .parallel import sub module 
 
 
 class OptimizationWorkflow:
@@ -28,117 +15,18 @@ class OptimizationWorkflow:
         project_root: str | Path,
         config: WorkflowConfig | None = None,
     ) -> None:
-        self.config = config or WorkflowConfig()
-        if self.config.mode not in {'basic', 'sophisticated'}:
-            raise ValueError("Workflow mode must be 'basic' or 'sophisticated'.")
-        self.stage_suffix = 'basic' if self.config.mode == 'basic' else 'complex'
-        self.paths = ProjectPaths.from_root(project_root, self.stage_suffix)
-        self.paths.ensure()
-        self._complex_results = None
-        self._ubi_predictor = None
-        self._structure_predictor = None
-        self._esm2_scorer = None
-
+        self. #TODO initialize modules 
+        
+#TODO build all modules 
     @property
     def ubi_predictor(self):
-        if self._ubi_predictor is None:
-            self._ubi_predictor = build_predictor(self.config.ubiquitination)
-        return self._ubi_predictor
 
-    @property
-    def structure_predictor(self):
-        if self._structure_predictor is None:
-            self._structure_predictor = build_structure_predictor(self.config.structure)
-        return self._structure_predictor
-
-    @property
-    def esm2_scorer(self) -> ESM2Scorer:
-        if self._esm2_scorer is None:
-            self._esm2_scorer = ESM2Scorer(self.config.esm2)
-        return self._esm2_scorer
-
+#TODO define 
     def T1_basic(self, sequence: str, protein_id: str = 'WT') -> dict:
         self._complex_results = None
         return prepare_wt_input(sequence, protein_id, self.paths)
 
-    def UP1_basic(self) -> pd.DataFrame:
-        return run_up1(self.ubi_predictor, self.paths)
-
-    def T2_basic(self, up1: pd.DataFrame | None = None) -> pd.DataFrame:
-        if up1 is None:
-            up1 = pd.read_csv(self.paths.table('UP1_wt_ubiquitination.csv'))
-        return generate_mutant_manifest(up1, self.paths, self.config.mutation)
-
-    def T2_all_lysine_to_arginine(self) -> pd.DataFrame:
-        return generate_all_lysine_to_arginine_manifest(self.paths)
-
-    def ESM2_basic(self, manifest: pd.DataFrame | None = None) -> pd.DataFrame:
-        """Compare T2 mutants with WT using pseudo-perplexity and embeddings."""
-        if manifest is None:
-            manifest = pd.read_csv(self.paths.table('T2_mutation_manifest.csv'))
-        return run_esm2_analysis(
-            manifest,
-            self.paths,
-            scorer=self.esm2_scorer,
-        )
-
-    def S1_basic(
-        self,
-        manifest: pd.DataFrame | None = None,
-        predict_structures: bool = True,
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        if manifest is None:
-            manifest = pd.read_csv(self.paths.table('T2_mutation_manifest.csv'))
-        return run_s1(
-            manifest=manifest,
-            paths=self.paths,
-            predictor=self.structure_predictor,
-            thresholds=self.config.structural_thresholds,
-            predict_structures=predict_structures,
-        )
-
-    def R1_basic(
-        self,
-        manifest: pd.DataFrame | None = None,
-        s1_metrics: pd.DataFrame | None = None,
-    ) -> pd.DataFrame:
-        if manifest is None:
-            manifest = pd.read_csv(self.paths.table('T2_mutation_manifest.csv'))
-        if s1_metrics is None:
-            s1_metrics = pd.read_csv(self.paths.table('S1_structural_metrics.csv'))
-        return run_r1(manifest, s1_metrics, self.paths)
-
-    def UB2_basic(self, s1_conserved: pd.DataFrame | None = None) -> pd.DataFrame:
-        if s1_conserved is None:
-            s1_conserved = pd.read_csv(self.paths.table('S1_structurally_conserved.csv'))
-        return run_ub2(self.ubi_predictor, s1_conserved, self.paths)
-
-    def R2_basic(
-        self,
-        up1: pd.DataFrame | None = None,
-        ub2: pd.DataFrame | None = None,
-        s1_conserved: pd.DataFrame | None = None,
-        esm2_results: pd.DataFrame | None = None,
-        use_saved_esm2: bool = True,
-    ):
-        if up1 is None:
-            up1 = pd.read_csv(self.paths.table('UP1_wt_ubiquitination.csv'))
-        if ub2 is None:
-            ub2 = pd.read_csv(self.paths.table('UB2_mutant_ubiquitination.csv'))
-        if s1_conserved is None:
-            s1_conserved = pd.read_csv(self.paths.table('S1_structurally_conserved.csv'))
-        if esm2_results is None and use_saved_esm2:
-            esm2_path = self.paths.table('ESM2_mutant_comparison.csv')
-            if esm2_path.exists():
-                esm2_results = pd.read_csv(esm2_path)
-        return run_r2(
-            up1,
-            ub2,
-            s1_conserved,
-            self.paths,
-            esm2_results=esm2_results,
-            esm2_config=self.config.esm2,
-        )
+    
 
     # Shared stages keep explicit names in both workflows.
     T1_complex = T1_basic

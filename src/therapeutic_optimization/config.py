@@ -1,3 +1,5 @@
+# Look over to regain familarity with configuration files, then rewrite for my own new pipeline. 
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

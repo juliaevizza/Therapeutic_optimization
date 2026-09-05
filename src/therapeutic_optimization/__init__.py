@@ -15,16 +15,5 @@ from .comparison import build_lysine_free_comparison
 from .esm2_analysis import ESM2Scorer, run_esm2_analysis
 
 __all__ = [
-    'ComplexSearchConfig',
-    'MutationConfig',
-    'ESM2AnalysisConfig',
-    'PredictorConfig',
-    'ProjectPaths',
-    'StructuralThresholds',
-    'StructurePredictorConfig',
-    'WorkflowConfig',
-    'OptimizationWorkflow',
-    'build_lysine_free_comparison',
-    'ESM2Scorer',
-    'run_esm2_analysis',
+modes and configurations 
 ]
