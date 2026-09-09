@@ -1,0 +1,11 @@
+These "transformations" are essentially purifying model outputs that may have excess data
+or recording data I want to store somewhere or maybe append more data.
+
+For example, T1 will take the users input and generate the wildtype fasta
+T2 will take the output from the ubiquitination predictor and mutant list
+
+These check points have little to do with practical form and everything to do with modulation!
+By creating cinch points where data will flow through, any model can attached in between T1 and T2. 
+Likewise, there can be multiple variations of a transformation, such as a transfromation that takes 
+the site list and turns it into a list of mutants. The mutations can be made singuarly, combinatorialy,
+with one amino, multiple, all of them, so I want to accomadate modulating that as well. 

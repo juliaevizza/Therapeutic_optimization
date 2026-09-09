@@ -9,6 +9,8 @@ from ..config import ProjectPaths, StructuralThresholds, StructurePredictorConfi
 from .colabfold import ColabFoldPredictor, StructurePrediction, find_rank1_structure
 from .metrics import analyze_structure_pair
 
+#TODO S1: structural analysis for one structure
+#TODO S2: structural analysis comparing two structures
 
 def build_structure_predictor(config: StructurePredictorConfig) -> ColabFoldPredictor:
     if config.name.lower() in {'colabfold', 'alphafold', 'alphafold2'}:

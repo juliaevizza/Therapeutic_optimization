@@ -26,18 +26,14 @@ def _prediction_summary(predictions: pd.DataFrame, threshold: float) -> dict[str
 
 
 def build_lysine_free_comparison(
-    up1: pd.DataFrame,
-    ub2: pd.DataFrame,
+    UP1: pd.DataFrame,
+    #TODO resolve what it is in manifest
     manifest: pd.DataFrame,
-    s1_metrics: pd.DataFrame,
     paths: ProjectPaths,
 ) -> pd.DataFrame:
     """Build one audit-friendly WT versus all-K-to-R comparison row."""
     if up1.empty:
-        raise ValueError('UP1 is empty; WT ubiquitination metrics cannot be calculated.')
-    if len(manifest) != 1:
-        raise ValueError('The all-K-to-R comparison requires exactly one mutant manifest row.')
-
+        raise ValueError("UP1 is empty; WT ubiquitination metrics cannot be calculated.")
     variant_id = str(manifest.iloc[0]['variant_id'])
     threshold = float(up1['threshold'].iloc[0]) if 'threshold' in up1.columns else 0.40
     mutant_predictions = (
