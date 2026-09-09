@@ -176,89 +176,58 @@ class ProjectPaths:
     root: Path
     stage_suffix: str = ''
 
+#TODO: not sure about this
     @classmethod
     def from_root(cls, root: str | Path, stage_suffix: str = '') -> 'ProjectPaths':
         return cls(Path(root).expanduser().resolve(), stage_suffix)
-
-    def table(self, name: str) -> Path:
-        """Use explicit stage labels while supporting standalone legacy callers."""
-        if self.stage_suffix:
-            stage, separator, rest = name.partition('_')
-            name = f'{stage}_{self.stage_suffix}{separator}{rest}'
-        return self.tables / name
+##^^
 
     @property
     def storage(self) -> Path:
         return self.root / 'storage'
 
     @property
-    def inputs(self) -> Path:
-        return self.storage / 'inputs'
+    def input(self) -> Path:
+        return self.storage / 'input'
 
     @property
-    def wt_fasta(self) -> Path:
-        return self.inputs / 'wt_input.fasta'
+    def mutants(self) -> Path:
+        return self.storage / 'mutants'
 
     @property
-    def input_metadata(self) -> Path:
-        return self.inputs / 'input_metadata.json'
+    def models(self) -> Path:
+        return self.storage / 'models'
 
     @property
-    def mutant_fastas(self) -> Path:
-        return self.storage / 'mutants' / 'fastas'
+    def property_predictors(self) -> Path:
+        return self.storage.models / 'property_predictors'
 
     @property
-    def ubi_wt(self) -> Path:
-        return self.storage / 'ubiquitination' / 'wt'
+    def ESM2(self) -> Path:
+        return self.storage.models / 'ESM2'
 
     @property
-    def ubi_mutants(self) -> Path:
-        return self.storage / 'ubiquitination' / 'mutants'
+    def AlphaFold(self) -> Path:
+        return self.storage.models / 'AlphaFold'
 
     @property
-    def structures_wt(self) -> Path:
-        return self.storage / 'structures' / 'wt'
+    def colabFold(self) -> Path:
+        return self.storage.models / 'colabFold'
 
     @property
-    def structures_mutants(self) -> Path:
-        return self.storage / 'structures' / 'mutants'
-
-    @property
-    def per_residue(self) -> Path:
-        return self.storage / 'structural' / 'per_residue'
-
-    @property
-    def esm2(self) -> Path:
-        return self.storage / 'esm2'
-
-    @property
-    def esm2_per_residue(self) -> Path:
-        return self.esm2 / 'per_residue'
-
-    @property
-    def figures(self) -> Path:
-        return self.storage / 'structural' / 'figures'
-
-    @property
-    def tables(self) -> Path:
-        return self.storage / 'tables'
-
-    @property
-    def logs(self) -> Path:
-        return self.storage / 'logs'
+    def queryingJunk(self) -> Path:
+        return self.storage / 'queryingJunk'
 
     def ensure(self) -> None:
         for path in (
-            self.inputs,
-            self.mutant_fastas,
-            self.ubi_wt,
-            self.ubi_mutants,
-            self.structures_wt,
-            self.structures_mutants,
-            self.per_residue,
-            self.esm2_per_residue,
-            self.figures,
-            self.tables,
-            self.logs,
+            self.storage,
+            self.input,
+            self.mutants,
+            self.models,
+            self.property_predictors,
+            self.ESM2,
+            self.AlphaFold,
+            self.colabFold,
+            self.queryingJunk,
         ):
             path.mkdir(parents=True, exist_ok=True)
