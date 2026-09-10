@@ -13,28 +13,18 @@ from ..config import MutationConfig, ProjectPaths
 """This defintion encompasses all of the possible modes of generate new mutants based on the models 
 predicted sites for knock out. This could be "singular" "combinatorial"""
 
-def generate_mutant_seq(wt, mode, mut, alt_AA = ""):
+def generate_mutant_seq(wt_seq, mode, mut, alt_AA = ""):
     """This mode will generate the singular mutations. Each mutant produced by this has ONE site 
      replaced with the new amino acid, informed by the mutant manifest"""
 
     mut_list = []
-
 
     if (mode == "singular"):
         alternative_aminos = list(alt_AA)
         #change each residue and append 
         for r in mut:
             for A in alternative_aminos:
-                new_mut = list(wt)
-                OG_AA = mut[r][0]
-                New_AA = alternative_aminos[A]
-                residue_number = mut[r][1:-2]
-
-            #TODO do I need to up my assert game?
-            assert(new_mut[r]== OG_AA)
-            new_mut[residue_number] = New_AA
-            str(new_mut)
-            mut_list.append(new_mut)
+                change_residue_to_A(residue_number, OG_AA, New_AA, wt_seq)
 
 
 
@@ -48,11 +38,31 @@ def generate_mutant_seq(wt, mode, mut, alt_AA = ""):
                     i = 0
                     while (i < iteration_length):
 
+return mut_list
 
-#TODO: pull out mutate one site code, then rethread singular mode to call it mulitple times
-# then thread combinatorial mode to call it it and perform essentially the SDM protocol 
+def change_residue_to_A(residue,OG_AA, new_AA, wt_seq):
+    """This will modify one residue in a wet_seq"""
+    new_mut = list(wt_seq)
+    #TODO do I need to up my assert game?
+    assert(new_mut[residue]== OG_AA)
+    new_mut[residue] = new_AA
+    return str(new_mut)
+
+def change_multiple_to_A_list(residue, OG_AA, new_AA, wt_seq):
+    """This will modify multiple residues in a wet_seq. residue, OG_AA, 
+    new_AA should all be equally lengthed lists"""
+    assert(len(residue)== len(OG_AA))
+    new_mut = list(wt_seq)
+    for r in residue:
+    #TODO do I need to up my assert game?
+        assert(new_mut[r]== OG_AA)
+        new_mut[residue] = new_AA
+    return str(new_mut)
 
 
-    return mut_list
-
-
+def process_mut(mut)-> pd.DataFrame:
+    for x in mut: 
+    new_mut = list(wt_seq)
+            OG_AA = mut[r][0]
+            New_AA = alternative_aminos[A]
+            residue_number = mut[r][1:-2]
