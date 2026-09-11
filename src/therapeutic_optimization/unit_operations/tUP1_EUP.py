@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
+
 
 import pandas as pd
 
 from ..config import PredictorConfig, ProjectPaths
 from ..io import read_single_fasta
-from .base import UbiquitinationPredictor
-from .eup import EUPPredictor
-
+from .tUP1_EUP import Site_Predictor
 
 EUP_REPOSITORY_URL = 'https://github.com/EUP-laboratory/ESM2-Ubiquitination-Prediction.git'
 EUP_MODEL_NAME = 'DNNLinearModel'
@@ -19,14 +20,8 @@ EUP_CHECKPOINT = Path('Model/DNNLinerModel/DNNLinermodel_checkpoint_epoch_34.pth
 
 
 def _run(command: list[str], cwd: Path | None = None) -> None:
-    result = subprocess.run(
-        command,
-        cwd=cwd,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
-    )
+    result = subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE, 
+                            stderr=subprocess.STDOUT, check=False,)
     if result.returncode != 0:
         raise RuntimeError(
             f"Command failed ({result.returncode}): {' '.join(command)}\n{result.stdout}"
@@ -38,7 +33,7 @@ def _sequence_context(sequence: str, position: int, radius: int = 10) -> str:
     return sequence[max(0, zero - radius): min(len(sequence), zero + radius + 1)]
 
 
-class EUPPredictor(UbiquitinationPredictor):
+class EUPPredictor(Site_Predictor):
     """
     EUP adapter using ESM2-3B residue embeddings + the published linear checkpoint.
 
@@ -48,19 +43,13 @@ class EUPPredictor(UbiquitinationPredictor):
 
     name = 'EUP'
 
-    def __init__(
-        self,
-        threshold: float = 0.40,
-        eup_repo_dir: str | Path = '/content/external/EUP',
-        model_cache_dir: str | Path = '/content/huggingface',
-        force_clone: bool = False,
-    ) -> None:
+    def __init__(self, threshold: float = 0.40, eup_repo_dir: str | Path = '/content/external/EUP',
+        model_cache_dir: str | Path = '/content/huggingface', ) -> None:
         if not 0.0 < threshold < 1.0:
             raise ValueError('EUP threshold must be between 0 and 1.')
         self.threshold = float(threshold)
         self.eup_repo_dir = Path(eup_repo_dir).expanduser()
         self.model_cache_dir = Path(model_cache_dir).expanduser()
-        self.force_clone = force_clone
         self._tokenizer = None
         self._esm_model = None
         self._classifier = None
@@ -72,7 +61,9 @@ class EUPPredictor(UbiquitinationPredictor):
         return self.eup_repo_dir / EUP_CHECKPOINT
 
     def release(self) -> None:
-        """Free EUP GPU models between WT inference and the adaptive search."""
+        """
+        Free EUP GPU models between WT inference and the adaptive search.
+        """
         self._tokenizer = None
         self._esm_model = None
         self._classifier = None
@@ -80,19 +71,23 @@ class EUPPredictor(UbiquitinationPredictor):
             self._torch.cuda.empty_cache()
 
     def prepare_repository(self) -> None:
+        """
+        Mount the EUP repository from github into the a local run time path
+        """
         resolved = self.eup_repo_dir.resolve()
         if str(resolved).startswith('/content/drive/'):
             raise ValueError(
                 'Do not clone EUP inside mounted Google Drive; Git LFS hooks can fail there. '
                 'Use /content/external/EUP or another local runtime path.'
             )
-        if self.force_clone and self.eup_repo_dir.exists():
+        if self.eup_repo_dir.exists():
             shutil.rmtree(self.eup_repo_dir)
         if not self.eup_repo_dir.exists():
             self.eup_repo_dir.parent.mkdir(parents=True, exist_ok=True)
             _run(['git', 'clone', EUP_REPOSITORY_URL, str(self.eup_repo_dir)])
 
         checkpoint = self.checkpoint_path
+
         if not checkpoint.exists() or checkpoint.stat().st_size < 1000:
             if shutil.which('git-lfs') or shutil.which('git'):
                 try:
@@ -102,16 +97,22 @@ class EUPPredictor(UbiquitinationPredictor):
                         f'EUP checkpoint is missing or still a Git LFS pointer: {checkpoint}. '
                         'Install git-lfs and run `git lfs pull` inside the EUP repository.'
                     ) from exc
-        if not checkpoint.exists() or checkpoint.stat().st_size < 1000:
             raise RuntimeError(f'Valid EUP checkpoint not found at {checkpoint}.')
+    
 
-    def _load_models(self) -> None:
+    def build_predictor(self) -> None:
+        """
+        This will intialize the model, a very important, kinda odd step
+        to think about, but it is an object.
+        """
         if self._esm_model is not None:
             return
         try:
+            #TODO figure out whats going on here
             import torch
             import torch.nn as nn
             from transformers import AutoModel, AutoTokenizer
+            
         except ImportError as exc:
             raise RuntimeError(
                 'EUP dependencies are missing. Install torch, transformers, accelerate, and safetensors.'
@@ -120,8 +121,7 @@ class EUPPredictor(UbiquitinationPredictor):
         if not torch.cuda.is_available():
             raise RuntimeError(
                 'EUP ESM2-3B inference requires a CUDA GPU in this implementation. '
-                'In Colab select a GPU runtime.'
-            )
+                'In Colab select a GPU runtime.')
 
         self.prepare_repository()
         self.model_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -140,6 +140,7 @@ class EUPPredictor(UbiquitinationPredictor):
         )
         esm_model.eval()
 
+#####TODO: got to here, got confused
         class DNNLinearModel(nn.Module):
             def __init__(self) -> None:
                 super().__init__()
@@ -177,29 +178,24 @@ class EUPPredictor(UbiquitinationPredictor):
         self._esm_model = esm_model
         self._classifier = classifier
 
-    def predict_sequence(
-        self,
-        sequence: str,
-        protein_id: str,
-        variant_id: str,
-        output_dir: Path | None = None,
-    ) -> pd.DataFrame:
-        sequence = normalize_sequence(sequence)
+
+
+    def predict_sites(self, sequence: str) -> pd.DataFrame:
+        """
+        This will predict the sites of sequence that are being
+        ubiquitinated. It wil return it as an entire pdDataFrame
+        with the column "site" containing all of the resiudes of 
+        interst.
+        """
         if len(sequence) > ESM_MAX_RESIDUES:
             raise ValueError(
                 f'Sequence length {len(sequence)} exceeds this EUP full-sequence limit of {ESM_MAX_RESIDUES}; '
                 'the sequence will not be silently truncated.'
             )
 
+        #determine lysine positions () (example of of casting protein to a 1 index)
         lysine_positions = [i for i, aa in enumerate(sequence, start=1) if aa == 'K']
-        if not lysine_positions:
-            empty = pd.DataFrame(columns=STANDARD_COLUMNS)
-            if output_dir is not None:
-                Path(output_dir).mkdir(parents=True, exist_ok=True)
-                empty.to_csv(Path(output_dir) / f'{variant_id}_eup.csv', index=False)
-            return empty
 
-        self._load_models()
         torch = self._torch
         tokenizer = self._tokenizer
         esm_model = self._esm_model
@@ -236,8 +232,6 @@ class EUPPredictor(UbiquitinationPredictor):
 
         records = [
             {
-                'variant_id': variant_id,
-                'protein_id': protein_id,
                 'predictor': self.name,
                 'lysine_position': position,
                 'site': f'K{position}',
@@ -248,10 +242,11 @@ class EUPPredictor(UbiquitinationPredictor):
             }
             for position, probability in zip(lysine_positions, probabilities)
         ]
-        result = pd.DataFrame(records, columns=STANDARD_COLUMNS)
+        result = pd.DataFrame(records)
         result = result.sort_values('probability', ascending=False).reset_index(drop=True)
+
+        #todo reroute to results
         if output_dir is not None:
             output_dir = Path(output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
-            result.to_csv(output_dir / f'{variant_id}_eup.csv', index=False)
         return result

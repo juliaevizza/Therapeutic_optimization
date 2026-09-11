@@ -16,6 +16,10 @@ def prepare_wt_input(
     paths.ensure()
     normalized = normalize_sequence(sequence)
     write_fasta(protein_id, normalized, paths.wt_fasta)
+
+    ## save fasta to storage/fastas
+
+
     metadata = {
         'protein_id': protein_id,
         'sequence_length': len(normalized),
@@ -24,3 +28,6 @@ def prepare_wt_input(
     }
     write_json(metadata, paths.input_metadata)
     return metadata
+
+#TODO: assert QC
+

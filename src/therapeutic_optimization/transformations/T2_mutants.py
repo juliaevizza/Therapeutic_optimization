@@ -7,7 +7,8 @@ import pandas as pd
 """This defintion encompasses all of the possible modes of generate new mutants based on the models 
 predicted sites for knock out. This could be "singular" """
 
-def generate_mutant_seq(wt_seq, mode, mut, alt_AA = "K"):
+
+def generate_mutant_seq(wt_seq, mode, mut, alt_AA = ["R"]):
     """This mode will generate the singular mutations. Each mutant produced by this has ONE site 
      replaced with the new amino acid, informed by the mutant manifest"""
 
@@ -93,3 +94,7 @@ def parse_mut(mut)-> pd.DataFrame:
     data = {'OG_AA' : OG_AA, 'Residue_number' : residue_number,}
     mutant_list = pd.DataFrame(data)
     return mutant_list
+
+#TODO: assert QC
+def assertQC():
+    pass
