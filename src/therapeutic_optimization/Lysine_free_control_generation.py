@@ -5,24 +5,17 @@ import pandas as pd
 from .config import ProjectPaths
 
 
-def _prediction_summary(predictions: pd.DataFrame, threshold: float) -> dict[str, float | int]:
-    if predictions.empty:
-        return {
-            'lysine_count': 0,
-            'positive_site_count': 0,
-            'probability_burden': 0.0,
-            'mean_probability': 0.0,
-            'max_probability': 0.0,
-        }
-    probabilities = predictions['probability'].astype(float)
-    positive = probabilities > threshold
-    return {
-        'lysine_count': int(len(predictions)),
-        'positive_site_count': int(positive.sum()),
-        'probability_burden': float(probabilities.loc[positive].sum()),
-        'mean_probability': float(probabilities.mean()),
-        'max_probability': float(probabilities.max()),
-    }
+
+
+def build_site_free_mutant(predictions: pd.DataFrame, wt_sequence):
+    sites = predictions['residues of interest']
+
+
+}
+
+
+
+
 
 
 def build_lysine_free_comparison(

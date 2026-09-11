@@ -27,3 +27,21 @@ def run_up1(
     output = paths.table('UP1_wt_ubiquitination.csv')
     result.to_csv(output, index=False)
     return result
+
+
+#TODO finish threading into this module, moved from lysine free generation 
+def _prediction_summary(predictions: pd.DataFrame, ubi_threshold: float) -> dict[str, float | int]:
+    "Returns data from ubiquitnatin prediciton "
+
+    if predictions.empty:
+        return {
+            'lysine_count': 0,
+            'positive_site_count': 0,
+        }
+    probabilities = predictions['probability'].astype(float)
+    positive = probabilities > ubi_threshold
+    return {
+        'lysine_count': int(len(predictions)),
+        'positive_site_count': int(len(positive)),
+        'residues of interest': positive
+    }
