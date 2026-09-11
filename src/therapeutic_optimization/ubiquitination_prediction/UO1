@@ -1,13 +1,5 @@
-from __future__ import annotations
+Add imports
 
-from pathlib import Path
-
-import pandas as pd
-
-from ..config import PredictorConfig, ProjectPaths
-from ..io import read_single_fasta
-from .base import UbiquitinationPredictor
-from .eup import EUPPredictor
 
 
 def build_predictor(config: PredictorConfig) -> UbiquitinationPredictor:

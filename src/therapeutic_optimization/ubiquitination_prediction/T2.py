@@ -19,6 +19,10 @@ class UbiquitinationPredictor(ABC):
         sequence: str,
         protein_id: str,
         variant_id: str,
-        output_dir: Path | None = None,
+        output_dir: Path.storage.results
     ) -> pd.DataFrame:
-        raise NotImplementedError
+
+        
+
+
+    #if mode is EUP, thread EUP results into here

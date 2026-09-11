@@ -1,14 +1,14 @@
-#TODO: look over all
 from __future__ import annotations
 
-import shutil
-import subprocess
 from pathlib import Path
 
 import pandas as pd
 
-from ..io import normalize_sequence
-from .base import STANDARD_COLUMNS, UbiquitinationPredictor
+from ..config import PredictorConfig, ProjectPaths
+from ..io import read_single_fasta
+from .base import UbiquitinationPredictor
+from .eup import EUPPredictor
+
 
 EUP_REPOSITORY_URL = 'https://github.com/EUP-laboratory/ESM2-Ubiquitination-Prediction.git'
 EUP_MODEL_NAME = 'DNNLinearModel'
