@@ -1,58 +1,95 @@
 from __future__ import annotations
 
-from itertools import combinations, product
-from math import prod
-from pathlib import Path
-
 import pandas as pd
-
-from ..config import MutationConfig, ProjectPaths
 
 
 #TODO generate all experimentally interesting data structures of mutants 
 """This defintion encompasses all of the possible modes of generate new mutants based on the models 
-predicted sites for knock out. This could be "singular" "combinatorial"""
+predicted sites for knock out. This could be "singular" """
 
-def generate_mutant_seq(wt, mode, mut, alt_AA = ""):
+def generate_mutant_seq(wt_seq, mode, mut, alt_AA = "K"):
     """This mode will generate the singular mutations. Each mutant produced by this has ONE site 
      replaced with the new amino acid, informed by the mutant manifest"""
 
-    mut_list = []
+### ASSSERTTSSSSSS
+    assert(type(wt_seq) == str)
+    assert(type(mode) == str)
+    assert isinstance(mut, list)
+    assert all(isinstance(item, str) for item in mut)
+    assert(type(alt_AA) == str)
 
+
+    parsed_mut = parse_mut(mut)
+    OG_AA = parsed_mut["OG_AA"]
+    residue_number = parsed_mut["Residue_number"]
+    alternative_aminos = list(alt_AA)
+    new_seq = []
 
     if (mode == "singular"):
-        alternative_aminos = list(alt_AA)
-        #change each residue and append 
-        for r in mut:
+        #changes singular mutation sites to each of the aminos of interest
+        for r in range(len(mut)):
             for A in alternative_aminos:
-                new_mut = list(wt)
-                OG_AA = mut[r][0]
-                New_AA = alternative_aminos[A]
-                residue_number = mut[r][1:-2]
+                new_seq.append(change_residue_to_A(residue_number[r], OG_AA[r], A, wt_seq))
 
-            #TODO do I need to up my assert game?
-            assert(new_mut[r]== OG_AA)
-            new_mut[residue_number] = New_AA
-            str(new_mut)
-            mut_list.append(new_mut)
+    if (mode == "all_homogenous"):
+        #changes every mutation site (for each amino of interest)
+        for A in alternative_aminos:
+                new_seq.append(change_multiple_to_A(residue_number, OG_AA, A, wt_seq))
+         
+    if (mode == "combinatorial"):
+        #generate mutant array
+        #while i < len(alternative_aminos)^2:
+        #new_seq.append(wt_seq)
 
-
-
-        """Currently implemented to make homogenous changes (all mutation sites are same)"""
-        if (mode == "combinatorial"):
-                iteration_length = len(mut)
-                alternative_aminos = list(alt_AA)
-                #change each residue and append 
-
+        branches = [list(wt_seq)]
+        n_sites = len(mut)
+        n = 0
+        while n < n_sites:
+            b_length = len(branches)
+            b = 0
+            new_branches = []
+            while b < b_length:
                 for A in alternative_aminos:
-                    i = 0
-                    while (i < iteration_length):
+                    seq = list(branches[b])
+                    seq[residue_number[n]-1] = A
+                    if (n == (n_sites)- 1):
+                        new_seq.append("".join(seq))
+                    new_branches.append(seq)
+                b = b + 1
+            branches = new_branches
+            n = n + 1
+    return new_seq
 
+def change_residue_to_A(r, OG_AA, new_AA, wt_seq):
+    """This will modify one residue in a wet_seq"""
+    new_mut = list(wt_seq)
+    #TODO do I need to up my assert game?
+    assert(new_mut[r-1] == OG_AA)
+    new_mut[r - 1] = new_AA
+    return "".join(new_mut)
 
-#TODO: pull out mutate one site code, then rethread singular mode to call it mulitple times
-# then thread combinatorial mode to call it it and perform essentially the SDM protocol 
+def change_multiple_to_A(residues, OG_AA, new_AA, wt_seq):
+    """This will modify multiple residues in a wet_seq. residue, OG_AA, 
+    new_AA should all be equally lengthed lists"""
+    assert(len(residues)== len(OG_AA))
 
+    new_mut = list(wt_seq)
+    for r, og_aa in zip(residues, OG_AA):
+    #TODO do I need to up my assert game?
+        assert(new_mut[r-1]== og_aa)
+        new_mut[r-1] = new_AA
+    return "".join(new_mut)
 
-    return mut_list
-
-
+def parse_mut(mut)-> pd.DataFrame:
+    """This will parse the string list output of the model to be well formatted 
+    for mutant generation."""
+    assert isinstance(mut, list)
+    assert all(isinstance(item, str) for item in mut)    
+    OG_AA = []
+    residue_number = []
+    for i in mut: 
+            OG_AA.append(i[0])
+            residue_number.append(int(i[1:]))
+    data = {'OG_AA' : OG_AA, 'Residue_number' : residue_number,}
+    mutant_list = pd.DataFrame(data)
+    return mutant_list
