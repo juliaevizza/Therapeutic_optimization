@@ -11,11 +11,6 @@ def build_site_free_mutant(predictions: pd.DataFrame, wt_sequence):
     sites = predictions['residues of interest']
 
 
-}
-
-
-
-
 
 
 def build_lysine_free_comparison(
