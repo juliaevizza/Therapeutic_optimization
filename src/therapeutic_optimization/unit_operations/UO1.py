@@ -1,8 +1,11 @@
 from pathlib import Path
 from abc import ABC, abstractmethod
+import pandas as pd
+from pandas import DataFrame as df
+from Bio import SeqIO
 
 
-#TODO define class for ubiquitination predictor
+
 class Site_Predictor(ABC):
     """
     Predictor interface.
@@ -27,27 +30,28 @@ class Site_Predictor(ABC):
         """
         pass
 
-    #TODO do assert QC on all transformations and uo
-    def assert_QC(self) -> bool:
+    def assert_QC(results) -> bool:
         """
         This will be called by the confirguration file to ensure all the
         information is moving through the pipeline properly.
         """
-        assert ()
+        assert(type(results) == pd.Dataframe)
+        assert(df.results["site"].empty) == False
+    
 
 
-    #TODO implement
-    def read_single_fasta(fasta):
+    def read_single_fasta_seq(fasta):
         """
         Open and parse the fasta file into the protein name and the
         sequence.
         """
-        seq = None #parse 
-        return seq
+        with open(fasta) as handle:
+            for title, seq in Bio.SeqIO.parse(handle):
+                sequence = seq
+            return seq
 
 
-    #TODO finish threading into this module, moved from lysine free generation 
-    def _prediction_summary(predictions: pd.DataFrame, ubi_threshold: float) -> dict[str, float | int]:
+    def _prediction_summary(predictions: pd.DataFrame, ubi_threshold: float) -> list:
         ""
         "Returns data from ubiquitnatin prediciton."
         ""
@@ -58,8 +62,8 @@ class Site_Predictor(ABC):
         }
         probabilities = predictions['probability'].astype(float)
         positive = probabilities > ubi_threshold
-        return {
-            'lysine_count': int(len(predictions)),
-             'positive_site_count': int(len(positive)),
-            'residues of interest': positive}
-
+        results = []
+        for r in positive: 
+            residue = "K" + str(r)
+            results.append(residue)
+        return results

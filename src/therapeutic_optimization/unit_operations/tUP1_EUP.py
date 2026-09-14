@@ -245,8 +245,5 @@ class EUPPredictor(Site_Predictor):
         result = pd.DataFrame(records)
         result = result.sort_values('probability', ascending=False).reset_index(drop=True)
 
-        #todo reroute to results
-        if output_dir is not None:
-            output_dir = Path(output_dir)
-            output_dir.mkdir(parents=True, exist_ok=True)
-        return result
+        paths = ProjectPaths.from_root(Path.cwd())
+        result.to_csv(paths.results / "ubi_predictions.csv", index=False)
