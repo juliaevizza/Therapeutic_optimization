@@ -6,6 +6,21 @@ from typing import Literal, Sequence
 import os
 
 
+### 
+#  plan to handle all imports in jupyter notebook, then
+# into workflow? 
+# pip install biopython
+# %pip install "colabfold[alphafold]" "jax[cuda12]"
+
+
+
+
+## ADD ALL IMPORTS FOR PROJECT HERE? 
+
+## make sure to remove them from the computer afterwards. this software
+## is a little invasive on peoples folders as of now.
+
+
 DEFAULT_ESM2_MODEL = 'facebook/esm2_t33_650M_UR50D'
 
 ## Need to figure out what these are doing a little better. i think this is on my actual hard drive. 

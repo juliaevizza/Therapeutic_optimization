@@ -12,7 +12,6 @@ from ..io import read_single_fasta
 from .tUP1_EUP import Site_Predictor
 
 EUP_REPOSITORY_URL = 'https://github.com/EUP-laboratory/ESM2-Ubiquitination-Prediction.git'
-EUP_MODEL_NAME = 'DNNLinearModel'
 ESM_MODEL_NAME = 'facebook/esm2_t36_3B_UR50D'
 ESM_EMBEDDING_DIMENSION = 2560
 ESM_MAX_RESIDUES = 1022
@@ -70,6 +69,14 @@ class EUPPredictor(Site_Predictor):
         if self._torch is not None and self._device is not None and self._device.type == 'cuda':
             self._torch.cuda.empty_cache()
 
+    def is_valid_git_repo(path: Path) -> bool:
+        result = subprocess.run(
+            ['git', '-C', str(path), 'rev-parse', '--is-inside-work-tree'],
+            capture_output=True,
+            text=True,
+            check=False,)
+        return result.returncode == 0 and result.stdout.strip() == 'true'
+
     def prepare_repository(self) -> None:
         """
         Mount the EUP repository from github into the a local run time path
@@ -77,11 +84,12 @@ class EUPPredictor(Site_Predictor):
         resolved = self.eup_repo_dir.resolve()
         if str(resolved).startswith('/content/drive/'):
             raise ValueError(
-                'Do not clone EUP inside mounted Google Drive; Git LFS hooks can fail there. '
+                'Do not clone EUP inside mounted Google Drive. '
                 'Use /content/external/EUP or another local runtime path.'
             )
-        if self.eup_repo_dir.exists():
-            shutil.rmtree(self.eup_repo_dir)
+            
+        if not is_valid_git_repo(self.eup_repo_dir):
+            _run(['git', 'clone', EUP_REPOSITORY_URL, str(self.eup_repo_dir)])
         if not self.eup_repo_dir.exists():
             self.eup_repo_dir.parent.mkdir(parents=True, exist_ok=True)
             _run(['git', 'clone', EUP_REPOSITORY_URL, str(self.eup_repo_dir)])
@@ -100,6 +108,8 @@ class EUPPredictor(Site_Predictor):
             raise RuntimeError(f'Valid EUP checkpoint not found at {checkpoint}.')
     
 
+
+    #TODO figure out torch importing
     def build_predictor(self) -> None:
         """
         This will intialize the model, a very important, kinda odd step
@@ -108,7 +118,6 @@ class EUPPredictor(Site_Predictor):
         if self._esm_model is not None:
             return
         try:
-            #TODO figure out whats going on here
             import torch
             import torch.nn as nn
             from transformers import AutoModel, AutoTokenizer
@@ -140,7 +149,6 @@ class EUPPredictor(Site_Predictor):
         )
         esm_model.eval()
 
-#####TODO: got to here, got confused
         class DNNLinearModel(nn.Module):
             def __init__(self) -> None:
                 super().__init__()
@@ -153,6 +161,7 @@ class EUPPredictor(Site_Predictor):
             state_dict = torch.load(self.checkpoint_path, map_location='cpu', weights_only=True)
         except TypeError:
             state_dict = torch.load(self.checkpoint_path, map_location='cpu')
+
         if isinstance(state_dict, dict) and 'state_dict' in state_dict:
             state_dict = state_dict['state_dict']
         cleaned = {
@@ -193,7 +202,7 @@ class EUPPredictor(Site_Predictor):
                 'the sequence will not be silently truncated.'
             )
 
-        #determine lysine positions () (example of of casting protein to a 1 index)
+        #determine lysine positions () (example of casting protein to a 1 index)
         lysine_positions = [i for i, aa in enumerate(sequence, start=1) if aa == 'K']
 
         torch = self._torch
@@ -209,14 +218,10 @@ class EUPPredictor(Site_Predictor):
             return_special_tokens_mask=True,
         )
         special_tokens_mask = encoded.pop('special_tokens_mask')[0]
-        residue_token_indices = torch.nonzero(
-            special_tokens_mask == 0,
-            as_tuple=False,
-        ).flatten()
+        residue_token_indices = torch.nonzero(special_tokens_mask == 0,as_tuple=False,).flatten()
         if len(residue_token_indices) != len(sequence):
             raise RuntimeError(
-                f'ESM tokenizer residue mapping failed: expected {len(sequence)} tokens, '
-                f'found {len(residue_token_indices)}.'
+                f'ESM tokenizer residue mapping failed: expected {len(sequence)} tokens.'
             )
         encoded = {key: value.to(device) for key, value in encoded.items()}
 
@@ -228,6 +233,7 @@ class EUPPredictor(Site_Predictor):
             ]
             features = hidden[lysine_token_indices].float()
             logits = classifier(features).squeeze(-1)
+            ## moves results to cpu from gpu
             probabilities = torch.sigmoid(logits).detach().cpu().tolist()
 
         records = [
@@ -243,6 +249,8 @@ class EUPPredictor(Site_Predictor):
             for position, probability in zip(lysine_positions, probabilities)
         ]
         result = pd.DataFrame(records)
+
+
         result = result.sort_values('probability', ascending=False).reset_index(drop=True)
 
         paths = ProjectPaths.from_root(Path.cwd())

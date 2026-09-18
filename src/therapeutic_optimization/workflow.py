@@ -8,7 +8,6 @@ import pandas as pd
 from therapeutic_optimization import transformations, unit_operations, config
 
 
-
 class Process_flow_diagram():
     """Top-level orchestration with explicit T1/UP1/T2/ESM2/S1/R1/UB2/R2 stages."""
 
@@ -29,7 +28,7 @@ class Process_flow_diagram():
         #TODO initialize modules 
 
         
-    #TODO understand
+    #TODO need to understand
     def _cached_complex(self, manifest: pd.DataFrame | None) -> bool:
         if self._complex_results is None:
             return False
@@ -52,12 +51,12 @@ class Process_flow_diagram():
         ###Obtain fasta from storage
         sequence = self.read_single_fasta(Path.wt_fasta)
 
-        ###Predict sites
+        ###Predict sites and return a string of list of the sites
         if (self.property == "ubiquitination" ):
             model = unit_operations.tUP1_EUP.build_predictor()
             muatation_sites = unit_operations.tUP1_EUP.predict_sites(model,)["sites"]
             unit_operations.UO1.assertQC()
-        return muatation_sites
+        return str(muatation_sites)
                    
     def T2(muatation_sites, self):
         "This will generate all the mutant sequences according to the user mode"
@@ -66,7 +65,6 @@ class Process_flow_diagram():
      
     def UO2(self) -> pd.DataFrame:
         """Run and return UO2 from the unit_operations file"""
-
         return 
 
     def run_all(self, sequence: str, protein_id: str = 'WT',
