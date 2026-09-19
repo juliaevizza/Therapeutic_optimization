@@ -5,14 +5,19 @@ from pathlib import Path
 from typing import Literal, Sequence
 import os
 
+import numpy as np
+import pandas as pd
+import biotite.structure as struc
+from biotite.structure.io.pdb import PDBFile
+
+
 
 ### 
 #  plan to handle all imports in jupyter notebook, then
 # into workflow? 
 # pip install biopython
 # %pip install "colabfold[alphafold]" "jax[cuda12]"
-
-
+# %pip install -q biotite pandas
 
 
 ## ADD ALL IMPORTS FOR PROJECT HERE? 
@@ -112,26 +117,30 @@ class ProjectPaths:
     root: Path
     stage_suffix: str = ''
 
-#TODO: not sure about this
+#TODO: not so sure about this
     @classmethod
     def from_root(cls, root: str | Path, stage_suffix: str = '') -> 'ProjectPaths':
         return cls(Path(root).expanduser().resolve(), stage_suffix)
 ##^^
 
-
 ## this sets the folder pathways up.
-
+    @property
+    def input(self) -> Path:
+        return self.storage / 'input'
+    
     @property
     def storage(self) -> Path:
         return self.root / 'storage'
 
+        
     @property
-    def input(self) -> Path:
-        return self.storage / 'input'
+    def results(self) -> Path:
+        return self.root / 'results'
+
 
     @property
-    def mutants(self) -> Path:
-        return self.storage / 'fastas'
+    def mutantinfo(self) -> Path:
+        return self.storage / 'mutantinfo'
 
     @property
     def models(self) -> Path:
@@ -146,33 +155,32 @@ class ProjectPaths:
         return self.storage.models / 'ESM2'
 
     @property
-    def AlphaFold(self) -> Path:
-        return self.storage.models / 'AlphaFold'
+    def ubi_EUP(self) -> Path:
+        return self.property_predictors / 'ubi_EUP'
 
     @property
     def colabFold(self) -> Path:
         return self.storage.models / 'colabFold'
 
     @property
-    def ignore(self) -> Path:
-        return self.storage / 'ignore'
-
-    @property
-    def results(self) -> Path:
-        return self.storage / 'results'
+    def batch_fastas(self) -> Path:
+        return self.mutantinfo / 'batch_fastas'
 
     def ensure(self) -> None:
         for path in (
-            self.storage,
             self.input,
-            self.mutants,
-            self.models,
-            self.property_predictors,
-            self.ESM2,
-            self.AlphaFold,
-            self.colabFold,
-            self.ingnore,
-            self.results
+            self.storage,
+                self.mutantinfo,
+                self.models,
+                    self.property_predictors,
+                        self.ubi_EUP,
+                    self.ESM2,
+                    self.colabFold,
+            self.results,
+
+            self.results,
+            self.batch_fastas,
+
         ):
             path.mkdir(parents=True, exist_ok=True)
 

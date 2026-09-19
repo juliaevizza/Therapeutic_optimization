@@ -3,12 +3,11 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
-
-
 import pandas as pd
 
 from ..config import PredictorConfig, ProjectPaths
 from ..io import read_single_fasta
+from.
 from .tUP1_EUP import Site_Predictor
 
 EUP_REPOSITORY_URL = 'https://github.com/EUP-laboratory/ESM2-Ubiquitination-Prediction.git'
@@ -107,8 +106,6 @@ class EUPPredictor(Site_Predictor):
                     ) from exc
             raise RuntimeError(f'Valid EUP checkpoint not found at {checkpoint}.')
     
-
-
     #TODO figure out torch importing
     def build_predictor(self) -> None:
         """

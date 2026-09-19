@@ -15,13 +15,14 @@ class Site_Predictor(ABC):
     seq: str
     model: None
 
+
+    #module specific methods.
     @abstractmethod
     def build_predictor(self):
         """
         This function will build the predictor and store in in a variable.
         """
         pass
-
 
     @abstractmethod
     def predict_sites(self, sequence, output_dir):
@@ -30,6 +31,8 @@ class Site_Predictor(ABC):
         """
         pass
 
+
+    #general methods
     def assert_QC(results) -> bool:
         """
         This will be called by the confirguration file to ensure all the
@@ -37,19 +40,6 @@ class Site_Predictor(ABC):
         """
         assert(type(results) == pd.Dataframe)
         assert(df.results["site"].empty) == False
-    
-
-
-    def read_single_fasta_seq(fasta):
-        """
-        Open and parse the fasta file into the protein name and the
-        sequence.
-        """
-        with open(fasta) as handle:
-            for title, seq in Bio.SeqIO.parse(handle):
-                sequence = seq
-            return seq
-
 
     def _prediction_summary(predictions: pd.DataFrame, ubi_threshold: float) -> list:
         ""
