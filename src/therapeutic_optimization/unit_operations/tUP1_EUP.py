@@ -1,3 +1,7 @@
+#This file has been reviewed and is completely set except for the import torch issues
+#I am pretty sure this is related problems with import Bio.(pip install biopython works fine)
+
+
 from __future__ import annotations
 
 import shutil

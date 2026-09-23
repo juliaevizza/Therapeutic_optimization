@@ -19,22 +19,20 @@ class Process_flow_diagram():
         assert(type(repeat_with_ESM_peek) == bool)
         self.wt_seq = seq
         self.alt_AA = alt_AA
-        self.manifest = pd.DataFrame()
+        #sets the property for the initial insight 
         self.property = property
+        #sets the algorithim for generating the mutants, later this will be turned and the
+        #tool chain will just recycle into more complex combinations and less expensive 
+        #searches until it finds good hits 
         self.mutant_mode =  mutant_mode
-        self.repeat_with_ESM = repeat_with_ESM_peek
+        #TODO: Understand the configuration threading. it seems over complicated? my 
+        #intuition tells me to keep it as simple as possible, threading arguments to 
+        #definitons securely ......
         self.PredictorConfiguration = None
-        self.UO1_Config(property)
-        #TODO initialize modules 
-
+        ##intialize data storage
+        self.mutant_manifest = pd.dataFrame(columns = ["mutant_id", "path", "score", 
+                                                          "ESM-2 perp", "status"] ) 
         
-    #TODO need to understand
-    def _cached_complex(self, manifest: pd.DataFrame | None) -> bool:
-        if self._complex_results is None:
-            return False
-        return manifest is None or manifest.equals(self._complex_results['T2'])
-
-    
     def T1(self):
         """ Transforms the user input into the required format for the predictor.
         This will also save a fasta copy of the wildtype sequence to the fastas 
@@ -43,7 +41,6 @@ class Process_flow_diagram():
         if (self.property == "ubiquitination" ):
             return transformations.T1_input.prepare_wt_input(self.wt_seq)
         
-
     def UO1(self):
         """This transforms the reformatted users input into which sites should 
         be mutated"""
@@ -85,6 +82,8 @@ class Process_flow_diagram():
             #optimize to do more amino acids, esm peeking
             pass
         T3 = self.results
+
+
 
         #if ESM is done: 
         #    try:
