@@ -15,9 +15,6 @@ import pandas as pd
 import biotite.structure as struc
 from biotite.structure.io.pdb import PDBFile
 
-
-from ..config import ProjectPaths
-
 #TODO include wt type in batch 
 
 #look over class and how it compares to standard code surronding colabfold/alphafold

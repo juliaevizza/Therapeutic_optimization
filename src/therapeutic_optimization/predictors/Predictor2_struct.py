@@ -3,8 +3,6 @@ import subprocess
 from uuid import uuid4
 from Bio.PDB import PDBParser, Superimposer, NeighborSearch
 
-
-
 import shutil
 #move structural analysis into here
 import sys
@@ -14,7 +12,6 @@ from abc import ABC, abstractmethod
 from colabfold_runner import fold_one, fold_batch, fold
 from Bio import SeqIO
 
-from ..config import ProjectPaths
 
 #look over class and how it compares to standard code surronding colabfold/alphafold
 class StructuralAnalysis(ABC):

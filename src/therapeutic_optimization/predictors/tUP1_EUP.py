@@ -250,5 +250,5 @@ class EUPPredictor(Site_Predictor):
 
         result = result.sort_values('probability', ascending=False).reset_index(drop=True)
 
-        paths = ProjectPaths.from_root(Path.cwd())
-        result.to_csv(paths.results / "ubi_predictions.csv", index=False)
+        #TODO : thread results to storage
+        result.to_csv(storage.results / "ubi_predictions.csv", index=False)

@@ -37,7 +37,7 @@ class Site_Predictor(ABC):
         This will be called by the confirguration file to ensure all the
         information is moving through the pipeline properly.
         """
-        assert(type(results) == pd.Dataframe)
+        assert(type(results) == pd.DataFrame)
         assert(df.results["site"].empty) == False
 
     def _prediction_summary(predictions: pd.DataFrame, ubi_threshold: float) -> list:

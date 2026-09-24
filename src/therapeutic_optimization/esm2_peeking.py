@@ -32,9 +32,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .config import DEFAULT_ESM2_MODEL, ESM2AnalysisConfig, ProjectPaths
-from .io import normalize_sequence, parse_mutation, read_single_fasta
-
 
 REQUIRED_MANIFEST_COLUMNS = {"variant_id", "fasta_path"}
 

@@ -2,21 +2,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .predictors.tUP1_EUP import EUPPredictor
 ### import all the pathways
 
 import pandas as pd
-from therapeutic_optimization import transformations, unit_operations, config
+from therapeutic_optimization import transformations, predictors, config
 
 
 class Process_flow_diagram():
     """Top-level orchestration with explicit T1/UP1/T2/ESM2/S1/R1/UB2/R2 stages."""
 
     def __init__(
-        self, seq, property, mutant_mode, repeat_with_ESM_peek,
-        project_root: str | Path, alt_AA = None 
-    ) -> None:
+        self, seq, property, mutant_mode, 
+        project_root: str | Path, alt_AA = None ) -> None:
         assert(type(property) == str)
-        assert(type(repeat_with_ESM_peek) == bool)
         self.wt_seq = seq
         self.alt_AA = alt_AA
         #sets the property for the initial insight 
@@ -32,10 +31,10 @@ class Process_flow_diagram():
         self.PredictorConfiguration = None
         ##intialize data storage
 
-        self.mutant_manifest = pd.dataFrame(columns = ["mutant_id", "path", "score", 
+        self.mutant_manifest = pd.DataFrame(columns = ["mutant_id", "path", "score", 
                                                           "ESM-2 perp", "status"] )
 
-    def make_folders(self) = 
+    def make_folders(self):
             script_dir = Path(__file__).resolve().parent
 
             input_dir = script_dir / "input"
@@ -82,14 +81,15 @@ class Process_flow_diagram():
         """This transforms the reformatted users input into which sites should 
         be mutated"""
 
-        ###Obtain fasta from storage
-        sequence = self.read_single_fasta(Path.wt_fasta)
+        #TODO: Obtain fasta from storage
+        sequence = self.read_single_fasta(_____)
 
         ###Predict sites and return a string of list of the sites
         if (self.property == "ubiquitination" ):
-            model = unit_operations.tUP1_EUP.build_predictor()
-            muatation_sites = unit_operations.tUP1_EUP.predict_sites(model,)["sites"]
-            unit_operations.UO1.assertQC()
+            model = EUPPredictor()
+            model = predictors.tUP1_EUP.build_predictor()
+            muatation_sites = predictors.tUP1_EUP.predict_sites(model,)["sites"]
+            predictors.UO1.assertQC()
         return str(muatation_sites)
 
     def T2(self, muatation_sites):
@@ -99,7 +99,7 @@ class Process_flow_diagram():
         return transformations.T2_mutants.generate_mutant_seq(self.wt_seq, self.mutant_mode, muatation_sites, self.alt_AA)
      
     def UO2(self) -> pd.DataFrame:
-        """Run and return UO2 from the unit_operations file"""
+        """Run and return UO2 from the predictors file"""
         return 
 
     def run_all(self, sequence: str, protein_id: str = 'WT',
