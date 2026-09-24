@@ -40,7 +40,7 @@ class Process_flow_diagram():
         """
         if (self.property == "ubiquitination" ):
             return transformations.T1_input.prepare_wt_input(self.wt_seq)
-        
+
     def UO1(self):
         """This transforms the reformatted users input into which sites should 
         be mutated"""
@@ -54,9 +54,10 @@ class Process_flow_diagram():
             muatation_sites = unit_operations.tUP1_EUP.predict_sites(model,)["sites"]
             unit_operations.UO1.assertQC()
         return str(muatation_sites)
-                   
-    def T2(muatation_sites, self):
-        "This will generate all the mutant sequences according to the user mode"
+
+    def T2(self, muatation_sites):
+        """This will generate all the mutant sequences according to the user mode and return a string 
+        of the sequences """
         transformations.T2_mutants.assertQC()
         return transformations.T2_mutants.generate_mutant_seq(self.wt_seq, self.mutant_mode, muatation_sites, self.alt_AA)
      
@@ -77,12 +78,7 @@ class Process_flow_diagram():
         UO1 = self.UO1(T1)
         T2 = self.T2(UO1)
         UO2 = self.UO2(T2)
-        SEP1 = self.SEP1(UO2)
-        if (SEP1.recycle != None):
-            #optimize to do more amino acids, esm peeking
-            pass
-        T3 = self.results
-
+        R1 = self.R1()
 
 
         #if ESM is done: 
@@ -95,8 +91,7 @@ class Process_flow_diagram():
         
         results = {
             'mutation sites': T2,
-            'Structural results overview': UO2,
-            'Ranked': T3,
+            'Ranked': ,
             "Optimization repeated": SEP1
         }
         if self._complex_results is not None:
