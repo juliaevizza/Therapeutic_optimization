@@ -29,8 +29,6 @@ esm2 = [
 ]
 dev = ["pytest>=7.4"]
 
-[project.scripts]
-therapeutic-optimize = "therapeutic_optimization.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

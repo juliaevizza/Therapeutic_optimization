@@ -12,15 +12,11 @@ def prepare_wt_input(
     write_fasta(protein_id, normalized, 
                 ##TODO call where we want the wt fasta to sit
                 .wt_fasta)
-
     ## save fasta to storage/fastas
-
-
     metadata = {
         'protein_id': protein_id,
         'sequence_length': len(normalized),
         'wt_fasta': str(paths.wt_fasta),
-        'created_at_utc': datetime.now(timezone.utc).isoformat(),
     }
     write_json(metadata, paths.input_metadata)
     return metadata
