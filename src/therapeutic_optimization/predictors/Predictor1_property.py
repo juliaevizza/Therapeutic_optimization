@@ -1,9 +1,5 @@
-from pathlib import Path
 from abc import ABC, abstractmethod
 import pandas as pd
-from pandas import DataFrame as df
-from Bio import SeqIO
-
 
 class Site_Predictor(ABC):
     """
@@ -38,12 +34,11 @@ class Site_Predictor(ABC):
         information is moving through the pipeline properly.
         """
         assert(type(results) == pd.DataFrame)
-        assert(df.results["site"].empty) == False
+        assert not results["site"].empty
 
     def _prediction_summary(predictions: pd.DataFrame, ubi_threshold: float) -> list:
         ""
         "Returns data from ubiquitnatin prediciton."
-        ""
         if predictions.empty:
            return {
             'lysine_count': 0,

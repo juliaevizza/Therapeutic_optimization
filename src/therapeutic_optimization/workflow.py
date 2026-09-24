@@ -6,7 +6,7 @@ from .predictors.tUP1_EUP import EUPPredictor
 ### import all the pathways
 
 import pandas as pd
-from therapeutic_optimization import transformations, predictors, config
+from therapeutic_optimization import transformations, predictors
 
 
 class Process_flow_diagram():
@@ -67,6 +67,8 @@ class Process_flow_diagram():
             results_dir = script_dir / "results"
             results_dir.mkdir(parents=True, exist_ok=True)
 
+    def prepareinput(self):
+        pass
 
         
     def T1(self):
@@ -81,16 +83,14 @@ class Process_flow_diagram():
         """This transforms the reformatted users input into which sites should 
         be mutated"""
 
-        #TODO: Obtain fasta from storage
-        sequence = self.read_single_fasta(_____)
-
+        sequence = self.wt_seq
         ###Predict sites and return a string of list of the sites
         if (self.property == "ubiquitination" ):
             model = EUPPredictor()
-            model = predictors.tUP1_EUP.build_predictor()
-            muatation_sites = predictors.tUP1_EUP.predict_sites(model,)["sites"]
+            model.build_predictor()
+            muatation_sites = predictors.predict_sites(sequence)
             predictors.UO1.assertQC()
-        return str(muatation_sites)
+        return muatation_sites.loc[muatation_sites["is_positive"], "site"].tolist()
 
     def T2(self, muatation_sites):
         """This will generate all the mutant sequences according to the user mode and return a string 

@@ -1,19 +1,11 @@
 #This file has been reviewed and is completely set 
 from pathlib import Path
 import subprocess
-from uuid import uuid4
 import shutil
-import sys
-from abc import ABC, abstractmethod
 from .Predictor2_struct import StructuralAnalysis
 
 from colabfold_runner import fold_one, fold_batch, fold
 from Bio import SeqIO
-
-import numpy as np
-import pandas as pd
-import biotite.structure as struc
-from biotite.structure.io.pdb import PDBFile
 
 #TODO include wt type in batch 
 
@@ -38,7 +30,7 @@ class ColabFoldPredictor(StructuralAnalysis):
             )
         return resolved
 
-    def predict_structure(self, batch: list, all_batch_output_dir: Path,) -> dict[str, list[Path]]:
+    def predict_structures(self, batch: list, all_batch_output_dir: Path,) -> dict[str, list[Path]]:
         batch_size = 20
         all_structures: dict[str, list[Path]] = {}
 
@@ -85,11 +77,10 @@ class ColabFoldPredictor(StructuralAnalysis):
                 query_names[prediction.variant_id] = query_name
                 handle.write(f'>{query_name}\n{sequence}\n')
 
-
+        ##runs batches through a command line call
         command = [executable, str(batch_fasta), str(batch_output_dir)]
         result = subprocess.run(command,text=True,stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT,check=False,)
-
     
         log_path = batch_output_dir / 'colabfold_run.log'
         log_path.write_text(result.stdout, encoding='utf-8')

@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 import pandas as pd
-from .Predictor2_struct import Site_Predictor 
+from .Predictor1_property import Site_Predictor
 
 EUP_REPOSITORY_URL = 'https://github.com/EUP-laboratory/ESM2-Ubiquitination-Prediction.git'
 ESM_MODEL_NAME = 'facebook/esm2_t36_3B_UR50D'
@@ -249,6 +249,4 @@ class EUPPredictor(Site_Predictor):
 
 
         result = result.sort_values('probability', ascending=False).reset_index(drop=True)
-
-        #TODO : thread results to storage
-        result.to_csv(storage.results / "ubi_predictions.csv", index=False)
+        return result

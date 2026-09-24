@@ -17,7 +17,8 @@ def generate_mutant_seq(wt_seq, mode, mut, alt_AA = ["R"]):
     assert(type(mode) == str)
     assert isinstance(mut, list)
     assert all(isinstance(item, str) for item in mut)
-    assert(type(alt_AA) == str)
+    for i in alt_AA:
+        assert(type(i) == str)
 
 
     parsed_mut = parse_mut(mut)

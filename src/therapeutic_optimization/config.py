@@ -2,15 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Sequence
-import os
-
-import numpy as np
-import pandas as pd
-import biotite.structure as struc
-from biotite.structure.io.pdb import PDBFile
-
-
+from typing import Literal
 
 ### 
 #  plan to handle all imports in jupyter notebook, then
@@ -18,7 +10,6 @@ from biotite.structure.io.pdb import PDBFile
 # pip install biopython
 # %pip install "colabfold[alphafold]" "jax[cuda12]"
 # %pip install -q biotite pandas
-
 
 ## ADD ALL IMPORTS FOR PROJECT HERE? 
 
