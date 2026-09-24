@@ -5,7 +5,6 @@ from pandas import DataFrame as df
 from Bio import SeqIO
 
 
-
 class Site_Predictor(ABC):
     """
     Predictor interface.

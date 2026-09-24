@@ -8,11 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 import pandas as pd
-
-from ..config import PredictorConfig, ProjectPaths
-from ..io import read_single_fasta
-from.
-from .tUP1_EUP import Site_Predictor
+from .Predictor2_struct import Site_Predictor 
 
 EUP_REPOSITORY_URL = 'https://github.com/EUP-laboratory/ESM2-Ubiquitination-Prediction.git'
 ESM_MODEL_NAME = 'facebook/esm2_t36_3B_UR50D'

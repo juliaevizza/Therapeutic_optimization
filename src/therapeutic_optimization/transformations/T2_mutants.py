@@ -10,7 +10,7 @@ predicted sites for knock out. This could be "singular" """
 
 def generate_mutant_seq(wt_seq, mode, mut, alt_AA = ["R"]):
     """This mode will generate the singular mutations. Each mutant produced by this has ONE site 
-     replaced with the new amino acid, informed by the mutant manifest"""
+     replaced with the new amino acid, informed by the mut argument"""
 
 ### ASSSERTTSSSSSS
     assert(type(wt_seq) == str)

@@ -25,13 +25,50 @@ class Process_flow_diagram():
         #tool chain will just recycle into more complex combinations and less expensive 
         #searches until it finds good hits 
         self.mutant_mode =  mutant_mode
+
         #TODO: Understand the configuration threading. it seems over complicated? my 
         #intuition tells me to keep it as simple as possible, threading arguments to 
         #definitons securely ......
         self.PredictorConfiguration = None
         ##intialize data storage
+
         self.mutant_manifest = pd.dataFrame(columns = ["mutant_id", "path", "score", 
-                                                          "ESM-2 perp", "status"] ) 
+                                                          "ESM-2 perp", "status"] )
+
+    def make_folders(self) = 
+            script_dir = Path(__file__).resolve().parent
+
+            input_dir = script_dir / "input"
+            input_dir.mkdir(parents=True, exist_ok=True)
+
+            storage_dir = script_dir / "storage"
+            storage_dir.mkdir(parents=True, exist_ok=True)
+
+            mutantinfo_dir = script_dir / "storage" / "mutantinfo"
+            mutantinfo_dir.mkdir(parents=True, exist_ok=True)
+
+            query_batching_dir = script_dir / "storage" / "mutantinfo"/ "query_batching"
+            query_batching_dir.mkdir(parents=True, exist_ok=True)
+
+            models_dir = script_dir / "storage" / "models"
+            models_dir.mkdir(parents=True, exist_ok=True)
+
+            property_predictors_dir = script_dir / "storage" / "models" / "property_predictors"
+            property_predictors_dir.mkdir(parents=True, exist_ok=True)
+
+            ubi_EUP_dir = script_dir / "storage" / "models" / "property_predictors" / "ubi_EUP"
+            ubi_EUP_dir.mkdir(parents=True, exist_ok=True)
+
+            ESM2_dir = script_dir / "storage" / "models" / "ESM2"
+            ESM2_dir.mkdir(parents=True, exist_ok=True)
+
+            colabfold_dir = script_dir / "storage" / "models" / "colabfold"
+            colabfold_dir.mkdir(parents=True, exist_ok=True)
+
+            results_dir = script_dir / "results"
+            results_dir.mkdir(parents=True, exist_ok=True)
+
+
         
     def T1(self):
         """ Transforms the user input into the required format for the predictor.
@@ -74,6 +111,7 @@ class Process_flow_diagram():
         Will return a dictionary containing the results
         """
 
+        self.make_folders()
         T1 = self.T1()
         UO1 = self.UO1(T1)
         T2 = self.T2(UO1)
@@ -87,14 +125,4 @@ class Process_flow_diagram():
                 # This model is not needed again in run_all; release its memory
                 # before structure prediction and later EUP mutant inference.
         #        self.esm2_scorer.release()
-
-        
-        results = {
-            'mutation sites': T2,
-            'Ranked': ,
-            "Optimization repeated": SEP1
-        }
-        if self._complex_results is not None:
-            results['search_summary'] = self._complex_results['search_summary']
-        return results
 

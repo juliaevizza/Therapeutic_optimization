@@ -5,7 +5,7 @@ from uuid import uuid4
 import shutil
 import sys
 from abc import ABC, abstractmethod
-from .UO2 import StructuralAnalysis
+from .Predictor2_struct import StructuralAnalysis
 
 from colabfold_runner import fold_one, fold_batch, fold
 from Bio import SeqIO
