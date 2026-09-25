@@ -68,6 +68,8 @@ class ProcessFlowDiagram():
     def make_local_folders(self) -> dict[str, Path]:
         """Create the fast, temporary workspace used during computation."""
         relative_paths = {
+            "wt_fasta": "wt_fasta",
+            "mut_fasta" : "mut_fasta",
             "wt_structures": "structures/wt",
             "mutant_structures": "structures/mutants",
             "figures": "figures",
@@ -82,41 +84,6 @@ class ProcessFlowDiagram():
             path.mkdir(parents=True, exist_ok=True)
 
         return self.local_paths
-
-
-
-    def make_folders(self):
-            script_dir = Path(__file__).resolve().parent
-
-            input_dir = script_dir / "input"
-            input_dir.mkdir(parents=True, exist_ok=True)
-
-            storage_dir = script_dir / "storage"
-            storage_dir.mkdir(parents=True, exist_ok=True)
-
-            mutantinfo_dir = script_dir / "storage" / "mutantinfo"
-            mutantinfo_dir.mkdir(parents=True, exist_ok=True)
-
-            query_batching_dir = script_dir / "storage" / "mutantinfo"/ "query_batching"
-            query_batching_dir.mkdir(parents=True, exist_ok=True)
-
-            models_dir = script_dir / "storage" / "models"
-            models_dir.mkdir(parents=True, exist_ok=True)
-
-            property_predictors_dir = script_dir / "storage" / "models" / "property_predictors"
-            property_predictors_dir.mkdir(parents=True, exist_ok=True)
-
-            ubi_EUP_dir = script_dir / "storage" / "models" / "property_predictors" / "ubi_EUP"
-            ubi_EUP_dir.mkdir(parents=True, exist_ok=True)
-
-            ESM2_dir = script_dir / "storage" / "models" / "ESM2"
-            ESM2_dir.mkdir(parents=True, exist_ok=True)
-
-            colabfold_dir = script_dir / "storage" / "models" / "colabfold"
-            colabfold_dir.mkdir(parents=True, exist_ok=True)
-
-            results_dir = script_dir / "results"
-            results_dir.mkdir(parents=True, exist_ok=True)
 
     def prepareinput(self):
         pass

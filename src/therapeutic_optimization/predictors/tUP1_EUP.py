@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 import pandas as pd
-from .Predictor1_property import Site_Predictor
+from .Predictor1_property import SitePredictor
 
 EUP_REPOSITORY_URL = 'https://github.com/EUP-laboratory/ESM2-Ubiquitination-Prediction.git'
 ESM_MODEL_NAME = 'facebook/esm2_t36_3B_UR50D'
@@ -31,7 +31,7 @@ def _sequence_context(sequence: str, position: int, radius: int = 10) -> str:
     return sequence[max(0, zero - radius): min(len(sequence), zero + radius + 1)]
 
 
-class EUPPredictor(Site_Predictor):
+class EUPPredictor(SitePredictor):
     """
     EUP adapter using ESM2-3B residue embeddings + the published linear checkpoint.
 
@@ -233,6 +233,7 @@ class EUPPredictor(Site_Predictor):
             ## moves results to cpu from gpu
             probabilities = torch.sigmoid(logits).detach().cpu().tolist()
 
+        ## TODO redo and save information to manifest instead
         records = [
             {
                 'predictor': self.name,
