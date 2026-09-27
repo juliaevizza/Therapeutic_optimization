@@ -19,14 +19,16 @@ class StructuralAnalysis(ABC):
     def predict_structure(self, batch: list, portion: tuple, batch_output_dir: Path,) -> dict[str, list[Path]]:
         """
         Takes a list of seqs in list total "batch", queries the structural 
-        predictor, and return a list .
+        predictor, and return a list.
         """
+        
 
     @abstractmethod
-    def assertQC():
+    def assert_qc():
         """
         This will be what ensures that output is always consistent leaving the structural analysis. 
         """
+        
 
     @abstractmethod
     def run_metrics():

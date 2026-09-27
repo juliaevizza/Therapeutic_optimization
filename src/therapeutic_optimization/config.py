@@ -16,9 +16,6 @@ from typing import Literal
 ## make sure to remove them from the computer afterwards. this software
 ## is a little invasive on peoples folders as of now.
 
-
-DEFAULT_ESM2_MODEL = 'facebook/esm2_t33_650M_UR50D'
-
 ## Need to figure out what these are doing a little better. i think this is on my actual hard drive. 
 def _default_eup_repo() -> Path:
     if Path('/content').exists():
@@ -31,11 +28,13 @@ def _default_hf_cache() -> Path:
     return Path.home() / '.cache' / 'huggingface'
 
 @dataclass(slots=True)
-class T2Config:
-    """Hyperparameters controlling T2 mutation site list."""
+class UbiquitinationConfig:
     threshold: float = 0.40
-
+    eup_repo_dir: Path = field(default_factory=_default_eup_repo)
+    model_cache_dir: Path = field(default_factory=_default_hf_cache)
 ### assert that the amino acids we are replacing with are valid
+
+
 
 
 

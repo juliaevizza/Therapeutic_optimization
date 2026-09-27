@@ -32,7 +32,7 @@ class SitePredictor(ABC):
 
 
     #general methods
-    def assert_QC(results) -> bool:
+    def assert_qc(results) -> bool:
         """
         This will be called to ensure all the information is 
         moving through the pipeline properly.

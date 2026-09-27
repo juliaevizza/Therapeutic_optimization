@@ -18,6 +18,12 @@ class ProcessFlowDiagram():
         assert(type(property) == str)
         self.wt_seq = seq
         self.alt_AA = alt_AA
+        self.normalize_alt_AA()
+
+        #intialize project root
+        self.project_root = Path(project_root).expanduser().resolve()
+        self.local_root = self.project_root
+
         #sets the property for the initial insight 
         self.property = property
         #sets the algorithim for generating the mutants, later this will be turned and the
@@ -85,6 +91,15 @@ class ProcessFlowDiagram():
 
         return self.local_paths
 
+    def normalize_alt_AA(self):
+        alt_AA = self.alt_AA
+        if alt_AA is None:
+            self.alt_AA = ("R",)
+        elif isinstance(alt_AA, str):
+            self.alt_AA = (alt_AA.upper(),)
+        else:
+            self.alt_AA = tuple(aa.upper() for aa in alt_AA)
+
     def prepareinput(self):
         pass
 
@@ -93,9 +108,15 @@ class ProcessFlowDiagram():
         """ Transforms the user input into the required format for the predictor.
         This will also save a fasta copy of the wildtype sequence to the fastas 
         folder in storage. 
+
+    return transformations.T1_input.prepare_wt_input(
+    )
         """
         if (self.property == "ubiquitination" ):
-            return transformations.T1_input.prepare_wt_input(self.wt_seq)
+            return transformations.T1_input.prepare_wt_input(
+        sequence=self.wt_seq,
+        protein_id=self.protein_id,
+        input_directory=self.local_paths["wt_fasta"],)
 
     def UO1(self):
         """This transforms the reformatted users input into which sites should 
@@ -104,8 +125,9 @@ class ProcessFlowDiagram():
         sequence = self.wt_seq
         ###Predict sites and return a string of list of the sites
         if (self.property == "ubiquitination" ):
-            model = EUPPredictor()
-            model.build_predictor()
+            model = EUPPredictor(threshold=self.config.ubiquitination.threshold,
+                        eup_repo_dir=self.config.ubiquitination.eup_repo_dir,
+                        model_cache_dir=self.config.ubiquitination.model_cache_dir,)            model.build_predictor()
             mutation_sites = model.predict_sites(sequence)            
             model.assertQC()
             return mutation_sites.loc[mutation_sites["is_positive"], "site"].tolist()
@@ -118,12 +140,13 @@ class ProcessFlowDiagram():
      
     def UO2(self) -> pd.DataFrame:
         """Run and return UO2 from the predictors file"""
+
         return 
 
     def run_all(self, sequence: str, protein_id: str = 'WT',
     ) -> dict[str, object]:
         
-        """Execute the complete workflow. GPU-heavy stages still
+        """Execute the complete workflow. GPU-heavy stages 
         fail loudly if dependencies are missing.
 
         Will return a dictionary containing the results
@@ -139,13 +162,9 @@ class ProcessFlowDiagram():
 
         #generate mutant structures
         T2 = self.T2()
-        UO2 = self.UO2(T2)
-        return UO2
 
-        #if ESM is done: 
-        #    try:
-        #    finally:
-                # This model is not needed again in run_all; release its memory
-                # before structure prediction and later EUP mutant inference.
-        #        self.esm2_scorer.release()
-
+        return T2 
+        #run strutctural prediction on mutant structures
+        #UO2 = self.UO2(T2)
+        #sreturn UO2
+    
