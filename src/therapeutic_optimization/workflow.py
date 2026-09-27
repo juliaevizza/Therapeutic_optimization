@@ -7,8 +7,11 @@ from .config import WorkflowConfig
 ### import all the pathways
 
 import pandas as pd
-from therapeutic_optimization import transformations, predictors
-
+from .transformations.T1_input import prepare_wt_input
+from .transformations.T2_mutants import (
+    assertQC as assert_qcT2,
+    generate_mutant_seq,
+)
 
 class ProcessFlowDiagram():
     """Top-level orchestration with explicit T1/UP1/T2/ESM2/S1/R1/UB2/R2 stages."""
@@ -107,8 +110,6 @@ class ProcessFlowDiagram():
         else:
             self.alt_AA = tuple(aa.upper() for aa in alt_AA)
 
-    def prepareinput(self):
-        pass
 
         
     def T1(self):
@@ -120,7 +121,7 @@ class ProcessFlowDiagram():
     )
         """
         if (self.property == "ubiquitination" ):
-            return transformations.T1_input.prepare_wt_input(
+            return prepare_wt_input(
         sequence=self.wt_seq,
         protein_id=self.protein_id,
         input_directory=self.local_paths["wt_fasta"],)
@@ -143,9 +144,8 @@ class ProcessFlowDiagram():
     def T2(self, mutation_sites):
         """This will generate all the mutant sequences according to the user mode and return a string 
         of the sequences """
-        transformations.T2_mutants.assertQC()
-        return transformations.T2_mutants.generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.alt_AA)
-     
+        assert_qcT2()
+        return generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.alt_AA,)
     def UO2(self) -> pd.DataFrame:
         """Run and return UO2 from the predictors file"""
 
