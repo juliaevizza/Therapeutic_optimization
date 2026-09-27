@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .predictors.tUP1_EUP import EUPPredictor
+from .config import WorkflowConfig
 ### import all the pathways
 
 import pandas as pd
@@ -14,11 +15,15 @@ class ProcessFlowDiagram():
 
     def __init__(
         self, seq, property, mutant_mode, 
-        project_root: str | Path, alt_AA = None ) -> None:
+        project_root: str | Path, alt_AA = None, protein_id: str = "WT", 
+        drive_root: str | Path | None = None,
+        )-> None:
         assert(type(property) == str)
         self.wt_seq = seq
         self.alt_AA = alt_AA
         self.normalize_alt_AA()
+        self.protein_id = protein_id
+        self.config = WorkflowConfig()
 
         #intialize project root
         self.project_root = Path(project_root).expanduser().resolve()
@@ -127,10 +132,11 @@ class ProcessFlowDiagram():
         if (self.property == "ubiquitination" ):
             model = EUPPredictor(threshold=self.config.ubiquitination.threshold,
                         eup_repo_dir=self.config.ubiquitination.eup_repo_dir,
-                        model_cache_dir=self.config.ubiquitination.model_cache_dir,)            model.build_predictor()
-            mutation_sites = model.predict_sites(sequence)            
-            model.assertQC()
-            return mutation_sites.loc[mutation_sites["is_positive"], "site"].tolist()
+                        model_cache_dir=self.config.ubiquitination.model_cache_dir,)
+            model.build_predictor()
+            prediction_results= model.predict_sites(sequence)            
+            model.assert_qc(prediction_results)
+            return prediction_results.loc[prediction_results["is_positive"], "site"].tolist()
 
     def T2(self, mutation_sites):
         """This will generate all the mutant sequences according to the user mode and return a string 
@@ -152,19 +158,22 @@ class ProcessFlowDiagram():
         Will return a dictionary containing the results
         """
 
-        self.make_folders()
 
         #prepare package, install dependencies, stow wt info
-        self.T1()
+        t1_result = self.T1()
 
         #predict mutation sites
-        self.UO1()
+        mutation_sites = self.UO1()
 
         #generate mutant structures
-        T2 = self.T2()
+        T2 = self.T2(mutation_sites)
 
-        return T2 
-        #run strutctural prediction on mutant structures
+
+        return {
+        "T1": t1_result,
+        "UO1": mutation_sites,
+        "T2": T2,
+        }        #run strutctural prediction on mutant structures
         #UO2 = self.UO2(T2)
         #sreturn UO2
     

@@ -12,6 +12,7 @@ from typing import Literal
 # %pip install -q biotite pandas
 
 ## ADD ALL IMPORTS FOR PROJECT HERE? 
+DEFAULT_ESM2_MODEL = "facebook/esm2_t33_650M_UR50D"
 
 ## make sure to remove them from the computer afterwards. this software
 ## is a little invasive on peoples folders as of now.
@@ -100,3 +101,15 @@ class ESM2AnalysisConfig:
         if self.perplexity_weight + self.representation_weight <= 0:
             raise ValueError('ESM-2 requires at least one positive scoring weight.')
 
+
+@dataclass(slots=True)
+class WorkflowConfig:
+    ubiquitination: UbiquitinationConfig = field(
+        default_factory=UbiquitinationConfig
+    )
+    esm2: ESM2AnalysisConfig = field(
+        default_factory=ESM2AnalysisConfig
+    )
+    structural_thresholds: StructuralThresholds = field(
+        default_factory=StructuralThresholds
+    )

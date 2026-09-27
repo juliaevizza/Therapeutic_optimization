@@ -68,6 +68,7 @@ class EUPPredictor(SitePredictor):
         if self._torch is not None and self._device is not None and self._device.type == 'cuda':
             self._torch.cuda.empty_cache()
 
+    @staticmethod
     def is_valid_git_repo(path: Path) -> bool:
         result = subprocess.run(
             ['git', '-C', str(path), 'rev-parse', '--is-inside-work-tree'],
@@ -87,11 +88,13 @@ class EUPPredictor(SitePredictor):
                 'Use /content/external/EUP or another local runtime path.'
             )
             
-        if not is_valid_git_repo(self.eup_repo_dir):
-            _run(['git', 'clone', EUP_REPOSITORY_URL, str(self.eup_repo_dir)])
-        if not self.eup_repo_dir.exists():
-            self.eup_repo_dir.parent.mkdir(parents=True, exist_ok=True)
-            _run(['git', 'clone', EUP_REPOSITORY_URL, str(self.eup_repo_dir)])
+        if not self.is_valid_git_repo(self.eup_repo_dir):
+            if self.eup_repo_dir.exists() and any(self.eup_repo_dir.iterdir()):
+                raise RuntimeError(
+                f"{self.eup_repo_dir} exists but is not a valid Git repository."
+            )
+            _run(["git","clone", EUP_REPOSITORY_URL, str(self.eup_repo_dir),])
+
 
         checkpoint = self.checkpoint_path
 
@@ -246,8 +249,12 @@ class EUPPredictor(SitePredictor):
             }
             for position, probability in zip(lysine_positions, probabilities)
         ]
-        result = pd.DataFrame(records)
+        result_columns = ["predictor", "lysine_position", "site",
+            "sequence_context", "probability", "threshold", "is_positive",]
 
+        result = pd.DataFrame(records, columns=result_columns)
 
-        result = result.sort_values('probability', ascending=False).reset_index(drop=True)
+        if not result.empty:
+            result = result.sort_values("probability", ascending=False,).reset_index(drop=True)
+
         return result

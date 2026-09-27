@@ -37,8 +37,17 @@ class SitePredictor(ABC):
         This will be called to ensure all the information is 
         moving through the pipeline properly.
         """
-        assert(type(results) == pd.DataFrame)
-        assert not results["site"].empty
+        if not isinstance(results, pd.DataFrame):
+            raise TypeError("Predictor results must be a pandas DataFrame.")
+
+        required_columns = {"site", "probability", "is_positive"}
+        missing_columns = required_columns - set(results.columns)
+
+        if missing_columns:
+            raise ValueError(
+                "Predictor results are missing required columns: "
+                f"{sorted(missing_columns)}"
+            )
 
     def _prediction_summary(predictions: pd.DataFrame, ubi_threshold: float) -> list:
         """
