@@ -13,17 +13,15 @@ from therapeutic_optimization import transformations, predictors
 class ProcessFlowDiagram():
     """Top-level orchestration with explicit T1/UP1/T2/ESM2/S1/R1/UB2/R2 stages."""
 
-    def __init__(
-        self, seq, property, mutant_mode, 
-        project_root: str | Path, alt_AA = None, protein_id: str = "WT", 
-        drive_root: str | Path | None = None,
-        )-> None:
+    def __init__(self, seq: str, property: str, mutant_mode: str, project_root: str | Path,
+    alt_AA=None, protein_id: str = "WT", config: WorkflowConfig | None = None,
+    drive_root: str | Path | None = None,) -> None:
         assert(type(property) == str)
         self.wt_seq = seq
         self.alt_AA = alt_AA
         self.normalize_alt_AA()
         self.protein_id = protein_id
-        self.config = WorkflowConfig()
+        self.config = config or WorkflowConfig()
 
         #intialize project root
         self.project_root = Path(project_root).expanduser().resolve()
@@ -42,8 +40,12 @@ class ProcessFlowDiagram():
         self.PredictorConfiguration = None
         ##intialize data storage
 
-        self.make_drive_folders()
         self.make_local_folders()
+
+        self.drive_paths: dict[str, Path] = {}
+        if drive_root is not None:
+            self.make_drive_folders(drive_root)
+
         self.mutant_manifest = pd.DataFrame(columns = ["mutant_id", "path", "score", 
                                                           "ESM-2 perp", "status"] )
 
@@ -148,9 +150,8 @@ class ProcessFlowDiagram():
         """Run and return UO2 from the predictors file"""
 
         return 
-
-    def run_all(self, sequence: str, protein_id: str = 'WT',
-    ) -> dict[str, object]:
+    
+    def run_all(self) -> dict[str, object]: 
         
         """Execute the complete workflow. GPU-heavy stages 
         fail loudly if dependencies are missing.

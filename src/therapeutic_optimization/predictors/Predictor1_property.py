@@ -32,6 +32,7 @@ class SitePredictor(ABC):
 
 
     #general methods
+    @staticmethod
     def assert_qc(results) -> bool:
         """
         This will be called to ensure all the information is 

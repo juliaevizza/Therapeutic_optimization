@@ -87,7 +87,9 @@ class EUPPredictor(SitePredictor):
                 'Do not clone EUP inside mounted Google Drive. '
                 'Use /content/external/EUP or another local runtime path.'
             )
-            
+
+        self.eup_repo_dir.parent.mkdir(parents=True, exist_ok=True)
+        
         if not self.is_valid_git_repo(self.eup_repo_dir):
             if self.eup_repo_dir.exists() and any(self.eup_repo_dir.iterdir()):
                 raise RuntimeError(

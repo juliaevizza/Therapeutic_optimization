@@ -22,8 +22,8 @@ class StructuralAnalysis(ABC):
         predictor, and return a list.
         """
         
-
-    @abstractmethod
+    
+    @staticmethod
     def assert_qc():
         """
         This will be what ensures that output is always consistent leaving the structural analysis. 
