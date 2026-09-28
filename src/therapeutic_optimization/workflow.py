@@ -50,7 +50,7 @@ class ProcessFlowDiagram():
             self.make_drive_folders(drive_root)
 
         self.mutant_manifest = pd.DataFrame(columns = ["mutant_id", "path", "score", 
-                                                          "ESM-2 perp", "status"] )
+                                                           "status"] )
 
 
     def make_drive_folders(self, drive_root: str | Path) -> dict[str, Path]:

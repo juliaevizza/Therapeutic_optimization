@@ -99,3 +99,14 @@ def parse_mut(mut)-> pd.DataFrame:
 #TODO: assert QC
 def assertQC():
     pass
+
+
+def write_mutants_to_manifest(self, manifest, i):
+    """This function will write the sequences and meta data into the mutant manifest"""
+    manifest.loc[len(manifest)] = ["mutant_id" = i, "path", "score", "status" = "unanalyzed",]
+
+def write_mutant_fastas(self, mutant_seq):
+    """This function will write the mutant fastas into the drive for the colabfold
+     command line interface."""
+
+    SeqRecord.(seq = mutant_seq, id = )

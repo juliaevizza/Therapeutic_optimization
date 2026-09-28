@@ -1,1 +1,3 @@
 This is under construction! 
+
+When completed, this will take a protein sequence through a google colab user interface. It will feed the sequence into a ubiquitination predictor that will predict which lysine sites are most likley to be tagged. Once the ubiquitation predictor runs, the program will generate mutants that replace that site with an amino acid provided by the alt_AA argument. This will inform the program of which amino acids the user wants to explore in that spot. If all amino acids are explored, the possibility space is extremely large, so it is best practice to start with those which are most similar to lysine. The program will inspect which of these mutants have the most similar structure to the initial sequence structure and recommend those to the user. 
