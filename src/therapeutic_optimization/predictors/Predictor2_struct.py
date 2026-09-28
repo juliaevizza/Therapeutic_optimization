@@ -1,5 +1,6 @@
 from pathlib import Path
 from abc import ABC, abstractmethod
+import pandas as pd
 
 
 #TODO look over class and how it compares to standard code surronding colabfold/alphafold
@@ -16,7 +17,7 @@ class StructuralAnalysis(ABC):
         pass
 
     @abstractmethod
-    def predict_structure(self, batch: list, portion: tuple, batch_output_dir: Path,) -> dict[str, list[Path]]:
+    def predict_structures(self, batch: list, portion: tuple, batch_output_dir: Path,) -> dict[str, list[Path]]:
         """
         Takes a list of seqs in list total "batch", queries the structural 
         predictor, and return a list.
