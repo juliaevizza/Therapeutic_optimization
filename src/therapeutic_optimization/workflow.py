@@ -49,7 +49,7 @@ class ProcessFlowDiagram():
         if drive_root is not None:
             self.make_drive_folders(drive_root)
 
-        self.mutant_manifest = pd.DataFrame(columns = ["mutant_id", "path", "score", 
+        self.mutant_manifest = pd.DataFrame(columns = ["mutant_id", "sequence", "path", "score", 
                                                            "status"] )
 
 
@@ -145,10 +145,10 @@ class ProcessFlowDiagram():
         """This will generate all the mutant sequences according to the user mode and return a string 
         of the sequences """
         assert_qcT2()
-        return generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.alt_AA,)
+        return generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.manifest, self.alt_AA)
+
     def UO2(self) -> pd.DataFrame:
         """Run and return UO2 from the predictors file"""
-
         return 
     
     def run_all(self) -> dict[str, object]: 
@@ -166,14 +166,13 @@ class ProcessFlowDiagram():
         #predict mutation sites
         mutation_sites = self.UO1()
 
-        #generate mutant structures
-        T2 = self.T2(mutation_sites)
-
+        #generate mutant structures and write them to the mutant_manifest
+        self.T2(mutation_sites)
 
         return {
         "T1": t1_result,
         "UO1": mutation_sites,
-        "T2": T2,
+        "T2": self.mutant_manifest["mutant_ids"],
         }        #run strutctural prediction on mutant structures
         #UO2 = self.UO2(T2)
         #sreturn UO2

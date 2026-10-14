@@ -2,11 +2,12 @@
 from pathlib import Path
 import subprocess
 import shutil
+import pandas as pd
 from .Predictor2_struct import StructuralAnalysis
 
-from colabfold_runner import fold_one, fold_batch, fold
 from Bio import SeqIO
 from Bio.PDB import PDBParser, Superimposer, NeighborSearch
+
 
 
 #need to import PDB parser
@@ -78,10 +79,7 @@ class ColabFoldPredictor(StructuralAnalysis):
         # Stable, simple query names avoid ColabFold filename sanitization while
         # preserving the caller's variant IDs in the returned mapping.
         query_names: dict[str, str] = {}
-
-        #TODO
-        batch_fastas_dir = ProjectPaths.from_root(Path.cwd()).batch_fastas
-
+        batch_fastas_dir = batch_output_dir / "inputs"
         batch_fastas_dir.mkdir(parents=True, exist_ok=True)
         batch_fasta = batch_fastas_dir / f'batch_{indices}.fasta'
         with batch_fasta.open('w', encoding='utf-8') as handle:

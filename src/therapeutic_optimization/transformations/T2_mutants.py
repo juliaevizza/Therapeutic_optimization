@@ -8,9 +8,9 @@ import pandas as pd
 predicted sites for knock out. This could be "singular" """
 
 
-def generate_mutant_seq(wt_seq, mode, mut, alt_AA = ["R"]):
+def generate_mutant_seq(wt_seq, mode, mut, mutant_manifest, alt_AA = ["R"]):
     """This mode will generate the singular mutations. Each mutant produced by this has ONE site 
-     replaced with the new amino acid, informed by the mut argument"""
+     replaced with the new amino acid, informed by the mut argument. It will return a string"""
 
 ### ASSSERTTSSSSSS
     assert(type(wt_seq) == str)
@@ -19,7 +19,6 @@ def generate_mutant_seq(wt_seq, mode, mut, alt_AA = ["R"]):
     assert all(isinstance(item, str) for item in mut)
     for i in alt_AA:
         assert(type(i) == str)
-
 
     parsed_mut = parse_mut(mut)
     OG_AA = parsed_mut["OG_AA"]
@@ -60,7 +59,11 @@ def generate_mutant_seq(wt_seq, mode, mut, alt_AA = ["R"]):
                 b = b + 1
             branches = new_branches
             n = n + 1
-    return new_seq
+
+    ##write new info (sequences and ids) to the mutant_manifest
+    for sequence in new_seq:
+        mutant_id = make_mutant_id(wt_seq, sequence)
+        mutant_manifest.loc[len(mutant_manifest)] = [mutant_id, sequence, pd.NA, pd.NA, pd.NA]
 
 def change_residue_to_A(r, OG_AA, new_AA, wt_seq):
     """This will modify one residue in a wet_seq"""
@@ -100,13 +103,16 @@ def parse_mut(mut)-> pd.DataFrame:
 def assertQC():
     pass
 
+def make_mutant_id(wt_seq, mutant_seq):
+    """This function will take the mutant sequence and generate the shorthand mutant 
+    id for it by comaparing which positions are different and than formatting it"""
+    return "_".join(
+        f"{old}{position}{new}" for position, (old, new) in enumerate(zip(wt_seq, mutant_seq), start=1) if old != new
+    )
 
-def write_mutants_to_manifest(self, manifest, i):
-    """This function will write the sequences and meta data into the mutant manifest"""
-    manifest.loc[len(manifest)] = ["mutant_id" = i, "path", "score", "status" = "unanalyzed",]
-
-def write_mutant_fastas(self, mutant_seq):
+def write_mutant_fastas(manifest, mutant_seq):
     """This function will write the mutant fastas into the drive for the colabfold
      command line interface."""
-
-    SeqRecord.(seq = mutant_seq, id = )
+    for i in manifest: 
+        pass
+        #SeqRecord.(seq = mutant_seq, id = )
