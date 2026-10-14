@@ -98,14 +98,11 @@ class ColabFoldPredictor(StructuralAnalysis):
             wt_path = structures["WT"][0]
             wt_atoms = self.read_ca_atoms(wt_path)
             for mutant_id in manifest["mutant_id"]:
-
-                for mutant_id in manifest["mutant_id"]:
-                    if mutant_id == "WT":
-                        continue
-                    mutants_pdb_paths = structures.get(mutant_id, [])
-                    mut_atoms = [self.read_ca_atoms(pdb_path) for pdb_path in mutants_pdb_paths]
-                    manifest.loc[manifest["mutant_id"] == mutant_id, "score"] = self.score_mutant(wt_atoms, mut_atoms)
-                    ## write  score to  protein manifest
+                if mutant_id == "WT":
+                    continue
+                mutants_pdb_paths = structures.get(mutant_id, [])
+                mut_atoms = [self.read_ca_atoms(pdb_path) for pdb_path in mutants_pdb_paths]
+                manifest.loc[manifest["mutant_id"] == mutant_id, "score"] = self.score_mutant(wt_atoms, mut_atoms)
 
     
     #########Helpers for metrics#########    

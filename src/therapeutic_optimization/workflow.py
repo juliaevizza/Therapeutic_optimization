@@ -154,9 +154,10 @@ class ProcessFlowDiagram():
         write_mutant_fastas(self.protein_manifest, self.local_paths["mut_fasta"])
 
     def UO2(self) -> dict[str, list[Path]]:
-        """Run and return UO2 from the predictors file"""
+        """Run strcutural computation and return structural anaylsis metrics """
         predictor = ColabFoldPredictor()
         protein_structures = predictor.predict_structures(self.protein_manifest, self.local_paths["mutant_structures"])
+        predictor.run_metrics(self, self.protein_manifest, protein_structures)
         return protein_structures
     
     def run_all(self) -> dict[str, object]: 
