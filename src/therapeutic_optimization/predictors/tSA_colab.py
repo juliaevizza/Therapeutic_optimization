@@ -9,8 +9,6 @@ from .Predictor2_struct import StructuralAnalysis
 from Bio import SeqIO
 from Bio.PDB import PDBParser, Superimposer, NeighborSearch
 
-
-
 #need to import PDB parser
 
 #TODO include wt type in batch 
@@ -88,7 +86,7 @@ class ColabFoldPredictor(StructuralAnalysis):
 
 
 #TODO NEXT flush on run_metrics pipeline with colab fold, then set up ESM_peeking for huge amino acids. then you're done!
-    def run_metrics(self, manifest: pd.DataFrame, wt_struct_path: Path, structures: dict[str, list[Path]])-> None:
+    def run_metrics(self, manifest: pd.DataFrame, structures: dict[str, list[Path]])-> None:
             """
             This will run the metrics on the PDB file to determine the
             stuctural differences between the wt and the mutant and write the score
@@ -97,47 +95,50 @@ class ColabFoldPredictor(StructuralAnalysis):
             parser = PDBParser(QUIET=True)
 
             # Generate WT once and read its reference atoms once.
-            wt_path = self.wt_pdb_generation(wt_sequence, wt_output_dir)
+            wt_path = structures["WT"][0]
             wt_atoms = self.read_ca_atoms(wt_path)
             for mutant_id in manifest["mutant_id"]:
-                mut_atoms = self.read_ca_atoms(structures[mutant_id])
-                results[mutant_id] = self.score_mutant(structures[mutant_id], wt_atoms)
 
-    
-            for i in manifest.mutant_id:
-                #find colab outputs with corresponding mutant_id label 
-                pdb_dir = structures_root / str(i)
+                for mutant_id in manifest["mutant_id"]:
+                    if mutant_id == "WT":
+                        continue
+                    mutants_pdb_paths = structures.get(mutant_id, [])
+                    mut_atoms = [self.read_ca_atoms(pdb_path) for pdb_path in mutants_pdb_paths]
+                    manifest.loc[manifest["mutant_id"] == mutant_id, "score"] = self.score_mutant(wt_atoms, mut_atoms)
+                    ## write  score to  protein manifest
 
-                #prepare to mean scores over all five structures via a list
-                mut_rmsd = []
-                mut_global_lddt = []
-                mut_residue_lddt = []
-
-                for pdb_path in sorted(pdb_dir.glob("*.pdb")):
-                    mut_structure = parser.get_structure(pdb_path.stem, pdb_path)
-                    mutant_atoms = ca_atoms_by_position(mut_structure)
-    
-                    # Biopython fits the mutant atoms onto the WT atoms.
-                    fit = Superimposer()
-                    fit.set_atoms(wt_atoms, mutant_atoms)
-                    mut_rmsd.append(fit.rms)
-                    mut_global_lddt.append(global_ca_lddt(wt_atoms, mutant_atoms))
-                    mut_residue_lddt.append(residue_ca_lddt(wt_atoms, mutant_atoms))
-    
-                #perform all metrics compared to wild type
-                #mean them
-                mut_rmsd_ave = sum(mut_rmsd) / len(mut_rmsd)
-                mut_global_lddt_ave = sum(mut_global_lddt) / len(mut_rmsd)
-                mut_residue_lddt_ave = sum(mut_residue_lddt) / len(mut_residue_lddt)
-                #return overall score for mutant 
-                # weight and scale 
-                mut_overall_score = mut_rmsd_ave + mut_global_lddt_ave + mut_residue_lddt_ave
-                manifest.loc[manifest["mutant_id"] == i, "score"] = mut_overall_score
-    
-    
     
     #########Helpers for metrics#########    
     
+    def score_mutant(self, wt_atoms, mut_atoms: list) -> float:
+        """Score a mutant using all of its predicted models. Pass into this as
+        processed atoms. This function returns the float corresponding to the mutants
+        score.
+        """
+        if not mut_atoms:
+            raise ValueError("At least one mutant structure is required.")
+
+        rmsd_values = []
+        global_lddt_values = []
+
+        for model_atoms in mut_atoms:
+            # This helper also checks matching chain/residue IDs and order.
+            global_lddt = self.global_ca_lddt(wt_atoms, model_atoms)
+            rmsd = self.rmsd(wt_atoms, model_atoms)
+
+            if not np.isfinite([rmsd, global_lddt]).all():
+                raise ValueError("A mutant model produced an undefined metric.")
+
+            rmsd_values.append(rmsd)
+            global_lddt_values.append(global_lddt)
+
+        mean_rmsd = float(np.mean(rmsd_values))
+        mean_global_lddt = float(np.mean(global_lddt_values))
+
+        # TODO: Replace this placeholder with the actual scoring function.
+        score = mean_rmsd + mean_global_lddt
+        return score
+
     @staticmethod
     def global_ca_lddt(wt_atoms, mutant_atoms, cutoff=15.0):
         """
