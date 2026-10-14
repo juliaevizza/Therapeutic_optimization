@@ -12,18 +12,19 @@ from .transformations.T2_mutants import (
     assertQC as assert_qcT2,
     generate_mutant_seq, write_mutant_fastas
 )
+from .predictors.tSA_colab import ColabFoldPredictor
+
 
 class ProcessFlowDiagram():
     """Top-level orchestration with explicit T1/UP1/T2/ESM2/S1/R1/UB2/R2 stages."""
 
     def __init__(self, seq: str, property: str, mutant_mode: str, project_root: str | Path,
-    alt_AA=None, protein_id: str = "WT", config: WorkflowConfig | None = None,
+    alt_AA=None, config: WorkflowConfig | None = None,
     drive_root: str | Path | None = None,) -> None:
         assert(type(property) == str)
         self.wt_seq = seq
         self.alt_AA = alt_AA
         self.normalize_alt_AA()
-        self.protein_id = protein_id
         self.config = config or WorkflowConfig()
 
         #intialize project root
@@ -49,7 +50,7 @@ class ProcessFlowDiagram():
         if drive_root is not None:
             self.make_drive_folders(drive_root)
 
-        self.mutant_manifest = pd.DataFrame(columns = ["mutant_id", "sequence", "path", "score", 
+        self.protein_manifest = pd.DataFrame(columns = ["mutant_id", "sequence", "path", "score", 
                                                            "status"] )
 
 
@@ -116,15 +117,13 @@ class ProcessFlowDiagram():
         """ Transforms the user input into the required format for the predictor.
         This will also save a fasta copy of the wildtype sequence to the fastas 
         folder in storage. 
-
-    return transformations.T1_input.prepare_wt_input(
-    )
         """
         if (self.property == "ubiquitination" ):
-            return prepare_wt_input(
-        sequence=self.wt_seq,
-        protein_id=self.protein_id,
+            return prepare_wt_input(sequence=self.wt_seq,
         input_directory=self.local_paths["wt_fasta"],)
+
+        #write wt information to protein_manifest at row 0.
+        self.protein_manifest.loc[0] = ["WT", self.wt_seq, ["wt_fasta_path"], pd.NA, pd.NA]
 
     def UO1(self):
         """This transforms the reformatted users input into which sites should 
@@ -145,12 +144,14 @@ class ProcessFlowDiagram():
         """This will generate all the mutant sequences according to the user mode and write
          the mutant sequences and names to the manifest."""
         assert_qcT2()
-        generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.mutant_manifest, self.alt_AA)
-        write_mutant_fastas(self.mutant_manifest, self.local_paths["mut_fasta"])
+        generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.protein_manifest, self.alt_AA)
+        write_mutant_fastas(self.protein_manifest, self.local_paths["mut_fasta"])
 
-    def UO2(self) -> pd.DataFrame:
+    def UO2(self) -> dict[str, list[Path]]:
         """Run and return UO2 from the predictors file"""
-        return 
+        predictor = ColabFoldPredictor()
+        protein_structures = predictor.predict_structures(self.protein_manifest, self.local_paths["mutant_structures"])
+        return protein_structures
     
     def run_all(self) -> dict[str, object]: 
         
@@ -167,13 +168,16 @@ class ProcessFlowDiagram():
         #predict mutation sites
         mutation_sites = self.UO1()
 
-        #generate mutant structures and write them to the mutant_manifest
+        #generate mutant structures and write them to the protein_manifest
         self.T2(mutation_sites)
+
+        #run the structural prediction on the 
+        _mutant_structures_pathes = self.UO2()
 
         return {
         "T1": t1_result,
         "UO1": mutation_sites,
-        "T2": self.mutant_manifest["mutant_id"],}        #run strutctural prediction on mutant structures
+        "T2": self.protein_manifest["mutant_id"],}        #run strutctural prediction on mutant structures
         #UO2 = self.UO2(T2)
         #sreturn UO2
     

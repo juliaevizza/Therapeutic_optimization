@@ -3,6 +3,7 @@ from pathlib import Path
 import subprocess
 import shutil
 import pandas as pd
+import numpy as np
 from .Predictor2_struct import StructuralAnalysis
 
 from Bio import SeqIO
@@ -106,22 +107,31 @@ class ColabFoldPredictor(StructuralAnalysis):
         return structures
 
 
-    def run_metrics(self, manifest: pd.DataFrame, wt_struct_path: Path,):
+    def run_metrics(self, manifest: pd.DataFrame, wt_struct_path: Path, structures: dict[str, list[Path]])->:
             """
             This will run the metrics on the PDB file to determine the
-            stuctural differences between the wt and the mutant.
+            stuctural differences between the wt and the mutant and write the score
+            to the mutant manifest for info tracking purposes.
             """
             parser = PDBParser(QUIET=True)
-            structures_root = Path("/path/to/storage/structures/mutants")
-            wt_structure = parser.get_structure("WT", str(wt_struct_path))
-            wt_atoms = ca_atoms_by_position(wt_structure)
+
+            # Generate WT once and read its reference atoms once.
+            wt_path = wt_pdb_generation(wt_sequence, wt_output_dir)
+            wt_atoms = read_ca_atoms(wt_path)
+            for mutant_id in manifest["mutant_id"]:
+                mut_atoms = sread_ca_atoms(structures[mutant_id])
+                results[mutant_id] = self.score_mutant(structures[mutant_id], wt_atoms)
+
     
             for i in manifest.mutant_id:
-                #go into folder with corresponding mutant id
+                #find colab outputs with corresponding mutant_id label 
                 pdb_dir = structures_root / str(i)
+
+                #prepare to mean scores over all five structures via a list
                 mut_rmsd = []
                 mut_global_lddt = []
                 mut_residue_lddt = []
+
                 for pdb_path in sorted(pdb_dir.glob("*.pdb")):
                     mut_structure = parser.get_structure(pdb_path.stem, pdb_path)
                     mutant_atoms = ca_atoms_by_position(mut_structure)
@@ -140,7 +150,7 @@ class ColabFoldPredictor(StructuralAnalysis):
                 mut_residue_lddt_ave = sum(mut_residue_lddt) / len(mut_residue_lddt)
                 #return overall score for mutant 
                 # weight and scale 
-                mut_overall_score = mut_residue_lddt_ave + mut_global_lddt_ave + mut_residue_lddt_ave
+                mut_overall_score = mut_rmsd_ave + mut_global_lddt_ave + mut_residue_lddt_ave
                 manifest.loc[manifest["mutant_id"] == i, "score"] = mut_overall_score
     #Helpers for metrics 
     
@@ -230,3 +240,27 @@ class ColabFoldPredictor(StructuralAnalysis):
             for total, count in zip(totals, counts)
         ]
 
+
+    @staticmethod
+    def read_ca_atoms(pdb_path):
+        pdb_path = Path(pdb_path)
+        if not pdb_path.is_file():
+            raise FileNotFoundError(pdb_path)
+
+        model = PDBParser(QUIET=True).get_structure(
+            pdb_path.stem, str(pdb_path)
+        )[0]
+
+        atoms = {(chain.id, residue.id): residue["CA"]
+            for chain in model
+            for residue in chain
+            if residue.id[0] == " " and "CA" in residue}
+
+        # Use consistent chain/residue ordering for every structure.
+        ordered_atoms = [atoms[key] for key in sorted(atoms)]
+
+        if len(ordered_atoms) < 3:
+            raise ValueError(f"Need at least three Cα atoms: {pdb_path}")
+        if not np.isfinite([atom.coord for atom in ordered_atoms]).all():
+            raise ValueError(f"Non-finite coordinates: {pdb_path}")
+        return ordered_atoms

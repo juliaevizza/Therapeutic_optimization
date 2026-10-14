@@ -49,7 +49,7 @@ def write_fasta(protein_id: str, sequence: str, destination: str | Path,) -> Pat
     return destination
 
 
-def prepare_wt_input(sequence: str, protein_id: str, input_directory: Path,) -> dict:
+def prepare_wt_input(sequence: str, input_directory: Path,) -> dict:
     """
     Convert user input into the WT FASTA and store it on the colabs local disk
     """
@@ -58,16 +58,14 @@ def prepare_wt_input(sequence: str, protein_id: str, input_directory: Path,) -> 
     wt_fasta = input_directory / "wt_input.fasta"
 
     write_fasta(
-        protein_id=protein_id,
+        protein_id="wt",
         sequence=normalized,
         destination=wt_fasta,
     )
 
     return {
-        "protein_id": protein_id,
+        "protein_id": "wt",
         "sequence": normalized,
         "sequence_length": len(normalized),
-        "wt_fasta_path": wt_fasta,
     }
-#TODO: assert QC
 

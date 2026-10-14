@@ -118,4 +118,4 @@ def write_mutant_fastas(manifest, output_directory):
      command line interface."""
     for row in manifest.itertuples():
         SeqIO.write(SeqRecord(Seq(row.sequence), id=row.mutant_id, description=""), output_directory / f"{row.mutant_id}.fasta", "fasta")
-        manifest.at[row.Index, "path"] = output_directory / f"{row.mutant_id}.fasta"
+        manifest.at[row.Index, "path"] = str(output_directory / f"{row.mutant_id}.fasta")
