@@ -67,5 +67,6 @@ def prepare_wt_input(sequence: str, input_directory: Path,) -> dict:
         "protein_id": "wt",
         "sequence": normalized,
         "sequence_length": len(normalized),
+        "wt_fasta_path": str(wt_fasta),
     }
 

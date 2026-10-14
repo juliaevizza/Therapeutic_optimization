@@ -122,9 +122,14 @@ class ProcessFlowDiagram():
             wt_info = prepare_wt_input(sequence=self.wt_seq,
         input_directory=self.local_paths["wt_fasta"],)
 
-        #write wt information to protein_manifest at row 0.
-        self.protein_manifest.loc[0] = ["WT", self.wt_seq, ["wt_fasta_path"], pd.NA, pd.NA]
+        #write wt information to protein_manifest at row 0. this will assign the normalized 
+        #sequence to the self.wet_seq, so that the normalized seq is then assigned to the 
+        #protein manifest. this section could use some touching up for stylistic sakes, but is
+        #at the least functioning and efficient :) #TODO later !
+        self.wt_seq = wt_info["sequence"]
+        self.protein_manifest.loc[0] = ["WT", self.wt_seq, wt_info["wt_fasta_path"], pd.NA, pd.NA] 
         return wt_info
+
     
     def UO1(self):
         """This transforms the reformatted users input into which sites should 

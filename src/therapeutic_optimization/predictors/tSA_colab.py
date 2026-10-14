@@ -86,7 +86,6 @@ class ColabFoldPredictor(StructuralAnalysis):
 
         return structures
 
-
     def run_metrics(self, manifest: pd.DataFrame, wt_struct_path: Path, structures: dict[str, list[Path]])-> None:
             """
             This will run the metrics on the PDB file to determine the
@@ -132,23 +131,12 @@ class ColabFoldPredictor(StructuralAnalysis):
                 # weight and scale 
                 mut_overall_score = mut_rmsd_ave + mut_global_lddt_ave + mut_residue_lddt_ave
                 manifest.loc[manifest["mutant_id"] == i, "score"] = mut_overall_score
-    #Helpers for metrics 
-    
-    #maybe go and refine implementation to match chains one by one (peptide : enzyme)
-    def ca_atoms_by_position(structure,):
-        """
-        Map PDB residue numbers to their Cα atoms in the first model.
-        """
-        chain = structure[0]
-        return {
-            residue.id[1]: residue["CA"]
-            for residue in chain
-            if residue.id[0] == " " and "CA" in residue
-        }
     
     
-    ### TODO: Need to lock down on these
     
+    #########Helpers for metrics#########    
+    
+    @staticmethod
     def global_ca_lddt(wt_atoms, mutant_atoms, cutoff=15.0):
         """
         Return one global Cα-lDDT score.
@@ -179,47 +167,13 @@ class ColabFoldPredictor(StructuralAnalysis):
             pair_count += 1
     
         return total_score / pair_count if pair_count else float("nan")
-    
-    
-    def residue_ca_lddt(wt_atoms, mutant_atoms, cutoff=15.0):
-        """
-        Return one Cα-lDDT score per residue, in wt_atoms order.
-        """
-        wt_ids = [a.get_full_id()[2:4] for a in wt_atoms]
-        mutant_ids = [a.get_full_id()[2:4] for a in mutant_atoms]
-    
-        if wt_ids != mutant_ids:
-            raise ValueError("Cα atoms must have matching chain/residue IDs and order.")
-        if len(wt_atoms) < 2:
-            raise ValueError("Need at least two Cα atoms.")
-    
-        positions = {atom: j for j, atom in enumerate(wt_atoms)}
-        totals = [0.0] * len(wt_atoms)
-        counts = [0] * len(wt_atoms)
-    
-        for a, b in NeighborSearch(wt_atoms).search_all(cutoff):
-            reference_distance = float(a - b)
-    
-            if reference_distance >= cutoff:
-                continue
-    
-            j, k = positions[a], positions[b]
-            mutant_distance = float(mutant_atoms[j] - mutant_atoms[k])
-            difference = abs(reference_distance - mutant_distance)
-    
-            score = sum(
-                difference < t for t in (0.5, 1.0, 2.0, 4.0)
-            ) / 4
-    
-            for index in (j, k):
-                totals[index] += score
-                counts[index] += 1
-    
-        return [
-            total / count if count else float("nan")
-            for total, count in zip(totals, counts)
-        ]
 
+    #TODO double check
+    @staticmethod
+    def rmsd(wt_atoms, mutant_atoms):
+        fit = Superimposer()
+        fit.set_atoms(wt_atoms, mutant_atoms)
+        return float(fit.rms)
 
     @staticmethod
     def read_ca_atoms(pdb_path):
