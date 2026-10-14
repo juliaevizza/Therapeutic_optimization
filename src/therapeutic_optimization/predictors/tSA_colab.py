@@ -86,6 +86,8 @@ class ColabFoldPredictor(StructuralAnalysis):
 
         return structures
 
+
+#TODO NEXT flush on run_metrics pipeline with colab fold, then set up ESM_peeking for huge amino acids. then you're done!
     def run_metrics(self, manifest: pd.DataFrame, wt_struct_path: Path, structures: dict[str, list[Path]])-> None:
             """
             This will run the metrics on the PDB file to determine the
