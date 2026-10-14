@@ -1,4 +1,7 @@
 from __future__ import annotations
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 import pandas as pd
 
@@ -110,9 +113,9 @@ def make_mutant_id(wt_seq, mutant_seq):
         f"{old}{position}{new}" for position, (old, new) in enumerate(zip(wt_seq, mutant_seq), start=1) if old != new
     )
 
-def write_mutant_fastas(manifest, mutant_seq):
+def write_mutant_fastas(manifest, output_directory):
     """This function will write the mutant fastas into the drive for the colabfold
      command line interface."""
-    for i in manifest: 
-        pass
-        #SeqRecord.(seq = mutant_seq, id = )
+    for row in manifest.itertuples():
+        SeqIO.write(SeqRecord(Seq(row.sequence), id=row.mutant_id, description=""), output_directory / f"{row.mutant_id}.fasta", "fasta")
+        manifest.at[row.Index, "path"] = output_directory / f"{row.mutant_id}.fasta"

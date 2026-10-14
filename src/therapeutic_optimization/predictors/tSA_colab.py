@@ -63,76 +63,48 @@ class ColabFoldPredictor(StructuralAnalysis):
             all_structures.update(batch_structures)
         return all_structures
 
-    def predict_batch(self, batch: list, portion_of_batch: tuple, batch_output_dir: Path,) -> dict[str, list[Path]]:
-        """
-        Takes a list of seqs and queries colab fold with a portion of them.
-        """
-        predictions = list(batch)
-        if not predictions:
+    def predict_structures(self, mutant_manifest: pd.DataFrame, all_batch_output_dir: Path,batch_size: int = 20,) -> dict[str, list[Path]]:
+        if batch_size < 1:
+            raise ValueError("batch_size must be at least 1.")
+
+        if mutant_manifest.empty:
             return {}
-        variant_ids = [prediction.variant_id for prediction in predictions]
-        
-        batch_output_dir = Path(batch_output_dir).resolve()
-        batch_output_dir.mkdir(parents=True, exist_ok=True)
+
         executable = self.resolve_executable()
-        indices = str(portion_of_batch[0]) + "-" + str(portion_of_batch[1])
-        # Stable, simple query names avoid ColabFold filename sanitization while
-        # preserving the caller's variant IDs in the returned mapping.
-        query_names: dict[str, str] = {}
-        batch_fastas_dir = batch_output_dir / "inputs"
-        batch_fastas_dir.mkdir(parents=True, exist_ok=True)
-        batch_fasta = batch_fastas_dir / f'batch_{indices}.fasta'
-        with batch_fasta.open('w', encoding='utf-8') as handle:
-            for index, prediction in enumerate(predictions):
-                fasta_path = Path(prediction.fasta_path).resolve()
+        output_root = Path(all_batch_output_dir)
+        structures = {}
 
-                if not fasta_path.exists():
-                    raise FileNotFoundError(fasta_path)
+        for batch_number, start in enumerate(
+        range(0, len(mutant_manifest), batch_size)
+    ):
+            batch = mutant_manifest.iloc[start:start + batch_size]
+            batch_dir = output_root / f"batch_{batch_number:03d}"
+            batch_dir.mkdir(parents=True, exist_ok=False)
 
-                record = next(SeqIO.parse(fasta_path, 'fasta'))
-                sequence = str(record.seq)
+            batch_csv = batch_dir / "input.csv"
+            batch[["mutant_id", "sequence"]].rename(columns={"mutant_id": "id"}).to_csv(batch_csv, index=False)
 
-                query_name = f'query_{index:06d}'
-                query_names[prediction.variant_id] = query_name
-                handle.write(f'>{query_name}\n{sequence}\n')
+            command = [executable, str(batch_csv), str(batch_dir), "--num-models", "5","--num-seeds", "1",]
 
-        ##runs batches through a command line call
-        command = [executable, str(batch_fasta), str(batch_output_dir)]
-        result = subprocess.run(command,text=True,stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT,check=False,)
-    
-        log_path = batch_output_dir / 'colabfold_run.log'
-        log_path.write_text(result.stdout, encoding='utf-8')
-        if result.returncode != 0:
-            raise RuntimeError(
-                f'ColabFold batch failed for {len(predictions)} sequences with code '
-                f'{result.returncode}. See {log_path}.'
-                    )
-        
-        structures: dict[str, list[Path]] = {}
-        for prediction in predictions:
-            query_name = query_names[prediction.variant_id]
-            destination_dir = Path(prediction.output_dir).resolve()
-            destination_dir.mkdir(parents=True, exist_ok=True)
-
-            source_files = sorted(
-                source
-                for source in batch_output_dir.rglob(f'{query_name}*')
-                if source.is_file() and source.suffix.lower() in {'.pdb', '.cif', '.mmcif'}
+            log_path = batch_dir / "colabfold_run.log"
+            with log_path.open("w", encoding="utf-8") as log:
+                result = subprocess.run(
+                command,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                check=False,
             )
-            if not source_files:
-                raise FileNotFoundError(
-                    f'No structures found for {prediction.variant_id} '
-                    f'with query name {query_name} in {batch_output_dir}.'
-                )
 
-            variant_structures: list[Path] = []
-            for source in source_files:
-                destination = destination_dir / source.name
-                shutil.copy2(source, destination)
-                variant_structures.append(destination)
-            structures[prediction.variant_id] = variant_structures
+            if result.returncode != 0:
+                raise RuntimeError(f"ColabFold failed. See {log_path}")
+
+            for mutant_id in batch["mutant_id"]:
+                model_paths = sorted(
+                batch_dir.glob(f"{mutant_id}_unrelaxed_rank_*.pdb") )
+                structures[mutant_id] = model_paths
+
         return structures
+
 
     def run_metrics(self, manifest: pd.DataFrame, wt_struct_path: Path,):
             """

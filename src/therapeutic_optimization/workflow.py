@@ -10,7 +10,7 @@ import pandas as pd
 from .transformations.T1_input import prepare_wt_input
 from .transformations.T2_mutants import (
     assertQC as assert_qcT2,
-    generate_mutant_seq,
+    generate_mutant_seq, write_mutant_fastas
 )
 
 class ProcessFlowDiagram():
@@ -142,10 +142,11 @@ class ProcessFlowDiagram():
             return prediction_results.loc[prediction_results["is_positive"], "site"].tolist()
 
     def T2(self, mutation_sites):
-        """This will generate all the mutant sequences according to the user mode and return a string 
-        of the sequences """
+        """This will generate all the mutant sequences according to the user mode and write
+         the mutant sequences and names to the manifest."""
         assert_qcT2()
-        return generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.manifest, self.alt_AA)
+        generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.mutant_manifest, self.alt_AA)
+        write_mutant_fastas(self.mutant_manifest, self.local_paths["mut_fasta"])
 
     def UO2(self) -> pd.DataFrame:
         """Run and return UO2 from the predictors file"""
@@ -172,8 +173,7 @@ class ProcessFlowDiagram():
         return {
         "T1": t1_result,
         "UO1": mutation_sites,
-        "T2": self.mutant_manifest["mutant_ids"],
-        }        #run strutctural prediction on mutant structures
+        "T2": self.mutant_manifest["mutant_id"],}        #run strutctural prediction on mutant structures
         #UO2 = self.UO2(T2)
         #sreturn UO2
     
