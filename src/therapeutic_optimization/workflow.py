@@ -119,12 +119,13 @@ class ProcessFlowDiagram():
         folder in storage. 
         """
         if (self.property == "ubiquitination" ):
-            return prepare_wt_input(sequence=self.wt_seq,
+            wt_info = prepare_wt_input(sequence=self.wt_seq,
         input_directory=self.local_paths["wt_fasta"],)
 
         #write wt information to protein_manifest at row 0.
         self.protein_manifest.loc[0] = ["WT", self.wt_seq, ["wt_fasta_path"], pd.NA, pd.NA]
-
+        return wt_info
+    
     def UO1(self):
         """This transforms the reformatted users input into which sites should 
         be mutated"""
@@ -161,8 +162,7 @@ class ProcessFlowDiagram():
         Will return a dictionary containing the results
         """
 
-
-        #prepare package, install dependencies, stow wt info
+        #prepare package, install dependencies, stow wt info, returns the wt info normalized
         t1_result = self.T1()
 
         #predict mutation sites

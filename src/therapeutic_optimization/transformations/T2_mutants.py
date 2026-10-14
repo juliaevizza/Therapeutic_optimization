@@ -117,5 +117,7 @@ def write_mutant_fastas(manifest, output_directory):
     """This function will write the mutant fastas into the drive for the colabfold
      command line interface."""
     for row in manifest.itertuples():
+        if row.mutant_id == "WT":
+            continue
         SeqIO.write(SeqRecord(Seq(row.sequence), id=row.mutant_id, description=""), output_directory / f"{row.mutant_id}.fasta", "fasta")
         manifest.at[row.Index, "path"] = str(output_directory / f"{row.mutant_id}.fasta")

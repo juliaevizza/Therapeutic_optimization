@@ -44,26 +44,6 @@ class ColabFoldPredictor(StructuralAnalysis):
             )
         return resolved
 
-    def predict_structures(self, batch: list, all_batch_output_dir: Path,) -> dict[str, list[Path]]:
-        """
-        This will split the mutants into batches of 20 to send to colab via a
-        command line call. 
-        """
-        batch_size = 20
-        all_structures: dict[str, list[Path]] = {}
-
-        for start in range(0, len(batch), batch_size):
-            end = min(start + batch_size, len(batch))
-            batch_output_dir = (
-                Path(all_batch_output_dir) / f'batch_{start}-{end - 1}')
-
-            batch_structures = self.predict_batch(
-                batch=batch[start:end],
-                portion_of_batch=(start, end - 1),
-                batch_output_dir=batch_output_dir,)
-            all_structures.update(batch_structures)
-        return all_structures
-
     def predict_structures(self, mutant_manifest: pd.DataFrame, all_batch_output_dir: Path,batch_size: int = 20,) -> dict[str, list[Path]]:
         if batch_size < 1:
             raise ValueError("batch_size must be at least 1.")
@@ -107,7 +87,7 @@ class ColabFoldPredictor(StructuralAnalysis):
         return structures
 
 
-    def run_metrics(self, manifest: pd.DataFrame, wt_struct_path: Path, structures: dict[str, list[Path]])->:
+    def run_metrics(self, manifest: pd.DataFrame, wt_struct_path: Path, structures: dict[str, list[Path]])-> None:
             """
             This will run the metrics on the PDB file to determine the
             stuctural differences between the wt and the mutant and write the score
@@ -116,10 +96,10 @@ class ColabFoldPredictor(StructuralAnalysis):
             parser = PDBParser(QUIET=True)
 
             # Generate WT once and read its reference atoms once.
-            wt_path = wt_pdb_generation(wt_sequence, wt_output_dir)
-            wt_atoms = read_ca_atoms(wt_path)
+            wt_path = self.wt_pdb_generation(wt_sequence, wt_output_dir)
+            wt_atoms = self.read_ca_atoms(wt_path)
             for mutant_id in manifest["mutant_id"]:
-                mut_atoms = sread_ca_atoms(structures[mutant_id])
+                mut_atoms = self.read_ca_atoms(structures[mutant_id])
                 results[mutant_id] = self.score_mutant(structures[mutant_id], wt_atoms)
 
     
