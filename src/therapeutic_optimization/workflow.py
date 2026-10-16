@@ -138,12 +138,17 @@ class ProcessFlowDiagram():
         sequence = self.wt_seq
         ###Predict sites and return a string of list of the sites
         if (self.property == "ubiquitination" ):
+            
             model = EUPPredictor(threshold=self.config.ubiquitination.threshold,
                         eup_repo_dir=self.config.ubiquitination.eup_repo_dir,
                         model_cache_dir=self.config.ubiquitination.model_cache_dir,)
-            model.build_predictor()
-            prediction_results= model.predict_sites(sequence)            
-            model.assert_qc(prediction_results)
+            try:
+                model.build_predictor()
+                prediction_results= model.predict_sites(sequence)            
+                model.assert_qc(prediction_results)
+            ### must release the model to open GPU memory for the next predictor
+            finally:
+                model.release()
             return prediction_results.loc[prediction_results["is_positive"], "site"].tolist()
 
     def T2(self, mutation_sites):
@@ -157,7 +162,7 @@ class ProcessFlowDiagram():
         """Run strcutural computation and return structural anaylsis metrics """
         predictor = ColabFoldPredictor()
         protein_structures = predictor.predict_structures(self.protein_manifest, self.local_paths["mutant_structures"])
-        predictor.run_metrics(self, self.protein_manifest, protein_structures)
+        predictor.run_metrics(self.protein_manifest, protein_structures)
         return protein_structures
     
     def run_all(self) -> dict[str, object]: 
