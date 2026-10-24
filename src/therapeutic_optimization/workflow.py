@@ -6,6 +6,8 @@ from .predictors.tUP1_EUP import EUPPredictor
 from .config import WorkflowConfig
 ### import all the pathways
 
+from datetime import datetime, timezone
+from uuid import uuid4
 import pandas as pd
 from .transformations.T1_input import prepare_wt_input
 from .transformations.T2_mutants import (
@@ -91,6 +93,7 @@ class ProcessFlowDiagram():
             "mutant_structures": "structures/mutants",
             "figures": "figures",
             "logs": "logs",
+            "setup": "setup"
         }
 
         self.local_paths = {name: self.local_root / relative_path
@@ -164,6 +167,38 @@ class ProcessFlowDiagram():
         protein_structures = predictor.predict_structures(self.protein_manifest, self.local_paths["mutant_structures"])
         predictor.run_metrics(self.protein_manifest, protein_structures)
         return protein_structures
+
+    def export_results(self) -> Path:
+        """Save only mutant sequences and scores to the configured Drive results folder."""
+        if "results" not in self.drive_paths:
+            raise RuntimeError("Set drive_root when creating the workflow to export results.")
+
+        mounted_drive = Path("/content/drive/MyDrive").resolve()
+        if not Path("/content/drive").is_mount() or not mounted_drive.is_dir():
+            raise RuntimeError("Reconnect Google Drive before exporting results.")
+        destination = self.drive_paths["results"].resolve()
+        if mounted_drive not in destination.parents:
+            raise ValueError("Results must be exported to a folder inside Google Drive's MyDrive.")
+
+        table = self.protein_manifest.loc[
+            self.protein_manifest["mutant_id"] != "WT", ["sequence", "score"]
+        ].copy()
+        table["score"] = pd.to_numeric(table["score"], errors="raise")
+        if table["score"].isna().any() or not table["score"].map(math.isfinite).all():
+            raise ValueError("Some mutants have missing or invalid scores. Complete scoring before exporting.")
+
+        destination.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        csv_path = destination / f"mutant_scores_{stamp}_{uuid4().hex}.csv"
+        temporary = csv_path.with_suffix(".csv.partial")
+        try:
+            # Publish the final filename only after the CSV has been written.
+            table.to_csv(temporary, index=False, mode="x")
+            temporary.replace(csv_path)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return csv_path
+
     
     def run_all(self) -> dict[str, object]: 
         
@@ -185,10 +220,13 @@ class ProcessFlowDiagram():
         #run the structural prediction on the 
         _mutant_structures_pathes = self.UO2()
 
+        results_csv = self.export_results() if self.drive_paths else None
+
         return {
         "T1": t1_result,
         "UO1": mutation_sites,
-        "T2": self.protein_manifest["mutant_id"],}        #run strutctural prediction on mutant structures
+        "T2": self.protein_manifest["mutant_id"],
+        "results": results_csv}        #run strutctural prediction on mutant structures
         #UO2 = self.UO2(T2)
         #sreturn UO2
     
