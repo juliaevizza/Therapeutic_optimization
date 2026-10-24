@@ -36,9 +36,6 @@ class UbiquitinationConfig:
 ### assert that the amino acids we are replacing with are valid
 
 
-
-
-
 # TO DO : structural threshold configuration (currently chatted) 
 @dataclass(slots=True)
 class StructuralThresholds:
