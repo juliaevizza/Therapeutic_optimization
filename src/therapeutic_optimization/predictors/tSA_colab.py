@@ -11,8 +11,6 @@ from Bio.PDB import PDBParser, Superimposer, NeighborSearch
 
 #need to import PDB parser
 
-#TODO include wt type in batch 
-
 #look over class and how it compares to standard code surronding colabfold/alphafold
 class ColabFoldPredictor(StructuralAnalysis):
     """
