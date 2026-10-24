@@ -4,17 +4,21 @@ from pathlib import Path
 
 from .predictors.tUP1_EUP import EUPPredictor
 from .config import WorkflowConfig
-### import all the pathways
-
-from datetime import datetime, timezone
-from uuid import uuid4
-import pandas as pd
+from .predictors.tSA_colab import ColabFoldPredictor
 from .transformations.T1_input import prepare_wt_input
 from .transformations.T2_mutants import (
     assertQC as assert_qcT2,
     generate_mutant_seq, write_mutant_fastas
 )
-from .predictors.tSA_colab import ColabFoldPredictor
+
+
+import math
+### import all the pathways
+
+from datetime import datetime, timezone
+from uuid import uuid4
+import pandas as pd
+
 
 
 class ProcessFlowDiagram():
@@ -165,6 +169,7 @@ class ProcessFlowDiagram():
         """Run strcutural computation and return structural anaylsis metrics """
         predictor = ColabFoldPredictor()
         protein_structures = predictor.predict_structures(self.protein_manifest, self.local_paths["mutant_structures"])
+        self.protein_manifest["score"] = pd.to_numeric(self.protein_manifest["score"], errors="raise").astype("Float64")
         predictor.run_metrics(self.protein_manifest, protein_structures)
         return protein_structures
 
