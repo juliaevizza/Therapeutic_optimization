@@ -46,8 +46,21 @@ class ColabFoldPredictor(StructuralAnalysis):
         if batch_size < 1:
             raise ValueError("batch_size must be at least 1.")
 
-        if mutant_manifest.empty:
-            return {}
+        assert isinstance(mutant_manifest, pd.DataFrame), "mutant_manifest must be a pandas DataFrame."
+
+        assert {"mutant_id", "sequence"}.issubset(mutant_manifest.columns), "Manifest must contain mutant_id and sequence columns."
+
+        assert not mutant_manifest.empty, "No sequences were supplied."
+        assert isinstance(batch_size, int) and batch_size > 0, "batch_size must be a positive integer."
+
+        ids = mutant_manifest["mutant_id"]
+
+        assert ids.map( lambda value: isinstance(value, str) and bool(value.strip())).all(), "Every protein must have a nonempty string ID."
+
+        assert ids.is_unique, "Protein IDs must be unique."
+        assert ids.eq("WT").sum() == 1, "Exactly one WT reference is required."
+
+        assert mutant_manifest["sequence"].map( lambda value: isinstance(value, str) and bool(value.strip())).all(), "Every protein must have a nonempty sequence."
 
         executable = self.resolve_executable()
         output_root = Path(all_batch_output_dir)
@@ -55,8 +68,7 @@ class ColabFoldPredictor(StructuralAnalysis):
         environment = dict(os.environ, MPLBACKEND="Agg")
 
         for batch_number, start in enumerate(
-        range(0, len(mutant_manifest), batch_size)
-    ):
+        range(0, len(mutant_manifest), batch_size)):
             batch = mutant_manifest.iloc[start:start + batch_size]
             batch_dir = output_root / f"batch_{batch_number:03d}"
             batch_dir.mkdir(parents=True, exist_ok=False)
@@ -80,10 +92,15 @@ class ColabFoldPredictor(StructuralAnalysis):
                 raise RuntimeError(f"ColabFold failed. See {log_path}")
 
             for mutant_id in batch["mutant_id"]:
+
                 model_paths = sorted(
                 batch_dir.glob(f"{mutant_id}_unrelaxed_rank_*.pdb") )
-                structures[mutant_id] = model_paths
 
+                assert model_paths, (f"No structures were produced for {mutant_id}. " f"Inspect {log_path} for the ColabFold error.")
+                assert all(path.stat().st_size > 0 for path in model_paths), (f"An empty PDB file was produced for {mutant_id}. "f"Inspect {log_path}.")
+                assert len(model_paths) == 5, (f"Expected 5 structures for {mutant_id}, "f"but found {len(model_paths)}. Inspect {log_path}.")
+                
+                structures[mutant_id] = model_paths
         return structures
 
 
@@ -96,7 +113,13 @@ class ColabFoldPredictor(StructuralAnalysis):
             parser = PDBParser(QUIET=True)
 
             # Generate WT once and read its reference atoms once.
-            wt_path = structures["WT"][0]
+            wt_models = sorted(structures.get("WT", []))
+
+            if not wt_models:
+                raise RuntimeError( "Cannot calculate structural scores: no WT reference structure was produced. ")
+
+            wt_path = wt_models[0]
+            
             wt_atoms = self.read_ca_atoms(wt_path)
             for mutant_id in manifest["mutant_id"]:
                 if mutant_id == "WT":
