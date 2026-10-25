@@ -4,6 +4,8 @@ import subprocess
 import shutil
 import pandas as pd
 import numpy as np
+import os
+
 from .Predictor2_struct import StructuralAnalysis
 
 from Bio import SeqIO
@@ -50,6 +52,7 @@ class ColabFoldPredictor(StructuralAnalysis):
         executable = self.resolve_executable()
         output_root = Path(all_batch_output_dir)
         structures = {}
+        environment = dict(os.environ, MPLBACKEND="Agg")
 
         for batch_number, start in enumerate(
         range(0, len(mutant_manifest), batch_size)
@@ -70,6 +73,7 @@ class ColabFoldPredictor(StructuralAnalysis):
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 check=False,
+                env=environment,
             )
 
             if result.returncode != 0:
@@ -83,7 +87,6 @@ class ColabFoldPredictor(StructuralAnalysis):
         return structures
 
 
-#TODO NEXT flush on run_metrics pipeline with colab fold, then set up ESM_peeking for huge amino acids. then you're done!
     def run_metrics(self, manifest: pd.DataFrame, structures: dict[str, list[Path]])-> None:
             """
             This will run the metrics on the PDB file to determine the
