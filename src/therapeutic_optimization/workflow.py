@@ -11,10 +11,7 @@ from .transformations.T2_mutants import (
     generate_mutant_seq, write_mutant_fastas
 )
 
-
 import math
-### import all the pathways
-
 from datetime import datetime, timezone
 from uuid import uuid4
 import pandas as pd
@@ -48,8 +45,8 @@ class ProcessFlowDiagram():
         #intuition tells me to keep it as simple as possible, threading arguments to 
         #definitons securely ......
         self.PredictorConfiguration = None
-        ##intialize data storage
 
+        ##intialize data storage
         self.make_local_folders()
 
         self.drive_paths: dict[str, Path] = {}
@@ -165,7 +162,7 @@ class ProcessFlowDiagram():
         generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.protein_manifest, self.alt_AA)
         write_mutant_fastas(self.protein_manifest, self.local_paths["mut_fasta"])
 
-    def UO2(self) -> dict[str, list[Path]]:
+    def structural(self) -> dict[str, list[Path]]:
         """Run strcutural computation and return structural anaylsis metrics """
         predictor = ColabFoldPredictor()
         protein_structures = predictor.predict_structures(self.protein_manifest, self.local_paths["mutant_structures"])
