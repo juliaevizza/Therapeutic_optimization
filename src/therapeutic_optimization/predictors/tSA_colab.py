@@ -157,7 +157,7 @@ class ColabFoldPredictor(StructuralAnalysis):
         mean_global_lddt = float(np.mean(global_lddt_values))
 
         # TODO: Replace this placeholder with the actual scoring function.
-        score = mean_rmsd + mean_global_lddt
+        score = 100 * mean_global_lddt
         return score
 
     @staticmethod
