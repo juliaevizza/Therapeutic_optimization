@@ -2,20 +2,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .predictors.tUP1_EUP import EUPPredictor
+from .predictors.property_ubi import EUPPredictor
 from .config import WorkflowConfig
-from .predictors.tSA_colab import ColabFoldPredictor
+from .predictors.structural_colab import ColabFoldPredictor
 from .transformations.T1_input import prepare_wt_input
 from .transformations.T2_mutants import (
     assertQC as assert_qcT2,
     generate_mutant_seq, write_mutant_fastas
 )
+from .predictors.sequence_ESM2 import sort_mutant_sequences
 
 import math
 from datetime import datetime, timezone
 from uuid import uuid4
 import pandas as pd
-
 
 
 class ProcessFlowDiagram():
@@ -36,9 +36,7 @@ class ProcessFlowDiagram():
 
         #sets the property for the initial insight 
         self.property = property
-        #sets the algorithim for generating the mutants, later this will be turned and the
-        #tool chain will just recycle into more complex combinations and less expensive 
-        #searches until it finds good hits 
+        #sets the algorithim for generating the mutants
         self.mutant_mode =  mutant_mode
 
         #TODO: Understand the configuration threading. it seems over complicated? my 
@@ -48,11 +46,9 @@ class ProcessFlowDiagram():
 
         ##intialize data storage
         self.make_local_folders()
-
         self.drive_paths: dict[str, Path] = {}
         if drive_root is not None:
             self.make_drive_folders(drive_root)
-
         self.protein_manifest = pd.DataFrame(columns = ["mutant_id", "sequence", "path", "score", 
                                                            "status"] )
 
@@ -115,8 +111,6 @@ class ProcessFlowDiagram():
         else:
             self.alt_AA = tuple(aa.upper() for aa in alt_AA)
 
-
-        
     def T1(self):
         """ Transforms the user input into the required format for the predictor.
         This will also save a fasta copy of the wildtype sequence to the fastas 
@@ -134,8 +128,7 @@ class ProcessFlowDiagram():
         self.protein_manifest.loc[0] = ["WT", self.wt_seq, wt_info["wt_fasta_path"], pd.NA, pd.NA] 
         return wt_info
 
-    
-    def UO1(self):
+    def property(self):
         """This transforms the reformatted users input into which sites should 
         be mutated"""
 
@@ -146,14 +139,10 @@ class ProcessFlowDiagram():
             model = EUPPredictor(threshold=self.config.ubiquitination.threshold,
                         eup_repo_dir=self.config.ubiquitination.eup_repo_dir,
                         model_cache_dir=self.config.ubiquitination.model_cache_dir,)
-            try:
-                model.build_predictor()
-                prediction_results= model.predict_sites(sequence)            
-                model.assert_qc(prediction_results)
-            ### must release the model to open GPU memory for the next predictor
-            finally:
-                model.release()
-            return prediction_results.loc[prediction_results["is_positive"], "site"].tolist()
+            model.build_predictor()
+            prediction_results= model.predict_sites(sequence)            
+            model.assert_qc(prediction_results)
+        return prediction_results.loc[prediction_results["is_positive"], "site"].tolist(), model
 
     def T2(self, mutation_sites):
         """This will generate all the mutant sequences according to the user mode and write
@@ -161,6 +150,9 @@ class ProcessFlowDiagram():
         assert_qcT2()
         generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.protein_manifest, self.alt_AA)
         write_mutant_fastas(self.protein_manifest, self.local_paths["mut_fasta"])
+
+    def sequence(self) -> dict[str, list[Path]]:
+        sort_mutant_sequences(self.protein_manifest)
 
     def structural(self) -> dict[str, list[Path]]:
         """Run strcutural computation and return structural anaylsis metrics """
@@ -201,7 +193,7 @@ class ProcessFlowDiagram():
             temporary.unlink(missing_ok=True)
         return csv_path
 
-    
+  
     def run_all(self) -> dict[str, object]: 
         
         """Execute the complete workflow. GPU-heavy stages 
@@ -214,13 +206,21 @@ class ProcessFlowDiagram():
         t1_result = self.T1()
 
         #predict mutation sites
-        mutation_sites = self.UO1()
+        mutation_sites, model = self.property()
 
         #generate mutant structures and write them to the protein_manifest
         self.T2(mutation_sites)
 
-        #run the structural prediction on the 
-        _mutant_structures_pathes = self.UO2()
+        #if there is more than 100 mutants, do an esm-2 cosine distance filter
+        if len(self.protein_manifest) >= 100: 
+            ### will sort based on sequence
+            self.sequence()
+            #todo crop list to top 100?
+
+        model.release()
+
+        #run the structural prediction on the downselected list
+        _mutant_structures_pathes = self.structural()
 
         results_csv = self.export_results() if self.drive_paths else None
 
@@ -230,5 +230,5 @@ class ProcessFlowDiagram():
         "T2": self.protein_manifest["mutant_id"],
         "results": results_csv}        #run strutctural prediction on mutant structures
         #UO2 = self.UO2(T2)
-        #sreturn UO2
+        #return UO2
     

@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 import pandas as pd
-from .Predictor1_property import SitePredictor
+from .property import SitePredictor
 
 EUP_REPOSITORY_URL = 'https://github.com/EUP-laboratory/ESM2-Ubiquitination-Prediction.git'
 ESM_MODEL_NAME = 'facebook/esm2_t36_3B_UR50D'
@@ -111,7 +111,6 @@ class EUPPredictor(SitePredictor):
                     ) from exc
             raise RuntimeError(f'Valid EUP checkpoint not found at {checkpoint}.')
     
-    #TODO figure out torch importing
     def build_predictor(self) -> None:
         """
         This will intialize the model, a very important, kinda odd step
@@ -188,8 +187,6 @@ class EUPPredictor(SitePredictor):
         self._tokenizer = tokenizer
         self._esm_model = esm_model
         self._classifier = classifier
-
-
 
     def predict_sites(self, sequence: str) -> pd.DataFrame:
         """

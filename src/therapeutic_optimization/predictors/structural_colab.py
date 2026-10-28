@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import os
 
-from .Predictor2_struct import StructuralAnalysis
+from .structural import StructuralAnalysis
 
 from Bio import SeqIO
 from Bio.PDB import PDBParser, Superimposer, NeighborSearch

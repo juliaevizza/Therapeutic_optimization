@@ -1,24 +1,4 @@
-"""Compare T2 mutant sequences with WT using an ESM-2 masked language model.
-
-This module is intentionally self-contained so it can be dropped into
-``src/therapeutic_optimization/`` without changing the rest of the package.
-
-Typical use after T2::
-
-    from therapeutic_optimization.esm2_analysis import run_esm2_analysis
-
-    t2 = workflow.T2(up1)
-    esm2_results = run_esm2_analysis(t2, workflow.paths)
-
-The primary output is ``storage/tables/ESM2_mutant_comparison.csv``.  By
-default, residue-level representation and log-probability changes are also
-written beneath ``storage/esm2/per_residue/``.
-
-ESM-2 is a masked language model, so "perplexity" here means pseudo-perplexity:
-each residue is masked in turn and its conditional log-probability is scored.
-This costs roughly one model evaluation per sequence residue (evaluations are
-batched) but gives a meaningful, directly comparable score for equal-length
-substitution mutants.
+"""
 """
 
 from __future__ import annotations
@@ -32,71 +12,22 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-
-REQUIRED_MANIFEST_COLUMNS = {"variant_id", "fasta_path"}
-
-SUMMARY_COLUMNS = [
-    "variant_id",
-    "mutation_spec",
-    "model_name",
-    "sequence_length",
-    "mutation_count",
-    "wt_pseudo_log_likelihood",
-    "mutant_pseudo_log_likelihood",
-    "delta_pseudo_log_likelihood",
-    "wt_mean_log_probability",
-    "mutant_mean_log_probability",
-    "delta_mean_log_probability",
-    "wt_pseudo_perplexity",
-    "mutant_pseudo_perplexity",
-    "delta_pseudo_perplexity",
-    "pseudo_perplexity_percent_change",
-    "pooled_representation_cosine_similarity",
-    "pooled_representation_cosine_distance",
-    "pooled_representation_l2_distance",
-    "mean_residue_representation_cosine_similarity",
-    "mean_residue_representation_cosine_distance",
-    "mean_residue_representation_l2_distance",
-    "max_residue_representation_l2_distance",
-    "mutation_site_representation_cosine_similarity",
-    "mutation_site_representation_cosine_distance",
-    "mutation_site_representation_l2_distance",
-    "per_residue_path",
-    "analysis_status",
-    "analysis_error",
-]
+#TODO: resolve
+import esm
+import torch
 
 
-@dataclass(slots=True)
-class SequenceScore:
-    """ESM-2 outputs retained for one sequence comparison."""
+REQUIRED_MANIFEST_COLUMNS = {"protein_id", "fasta_path"}
 
-    sequence: str
-    residue_log_probabilities: np.ndarray
-    residue_representations: np.ndarray
-    pooled_representation: np.ndarray
+SUMMARY_COLUMNS = 
 
-    @property
-    def pseudo_log_likelihood(self) -> float:
-        return float(self.residue_log_probabilities.sum())
-
-    @property
-    def mean_log_probability(self) -> float:
-        return float(self.residue_log_probabilities.mean())
-
-    @property
-    def pseudo_perplexity(self) -> float:
-        # The upper bound prevents OverflowError while preserving an explicit
-        # infinite score for an extremely improbable sequence.
-        exponent = -self.mean_log_probability
-        return math.exp(exponent) if exponent < 709.0 else math.inf
 
 
 class ESM2Scorer:
     """Lazily load ESM-2 and calculate pseudo-perplexity/representations."""
 
-    def __init__(self, config: ESM2AnalysisConfig | None = None) -> None:
-        self.config = config or ESM2AnalysisConfig()
+    def __init__(self) -> None:
+        self.config = ESM2AnalysisConfig()
         self.config.validate()
         self._torch: Any | None = None
         self._tokenizer: Any | None = None
@@ -124,12 +55,14 @@ class ESM2Scorer:
         else:
             device = torch.device("cpu")
 
+
         dtype_name = self.config.dtype
         if dtype_name == "auto":
             dtype_name = "float16" if device.type == "cuda" else "float32"
         if device.type == "cpu" and dtype_name == "float16":
             raise ValueError("float16 ESM-2 inference is not supported on CPU; use float32.")
         dtype = getattr(torch, dtype_name)
+
 
         cache_dir = (
             str(Path(self.config.model_cache_dir).expanduser())
@@ -191,7 +124,6 @@ class ESM2Scorer:
         forward pass, restricted to residue tokens.
         """
 
-        sequence = normalize_sequence(sequence)
         self._load_model()
         torch = self._torch
         model = self._model
@@ -261,13 +193,11 @@ class ESM2Scorer:
         if torch is not None and device is not None and device.type == "cuda":
             torch.cuda.empty_cache()
 
-
 def _cosine_similarity(left: np.ndarray, right: np.ndarray) -> float:
     denominator = float(np.linalg.norm(left) * np.linalg.norm(right))
     if denominator == 0.0:
         return math.nan
     return float(np.dot(left, right) / denominator)
-
 
 def _rowwise_representation_metrics(
     wt_representations: np.ndarray,
@@ -287,40 +217,7 @@ def _rowwise_representation_metrics(
     l2_distances = np.linalg.norm(mutant_representations - wt_representations, axis=1)
     return cosine_similarities, l2_distances
 
-
-def _mutation_positions(
-    wt_sequence: str,
-    mutant_sequence: str,
-    mutation_spec: str,
-) -> list[int]:
-    changed = [
-        position
-        for position, (wt_aa, mutant_aa) in enumerate(
-            zip(wt_sequence, mutant_sequence),
-            start=1,
-        )
-        if wt_aa != mutant_aa
-    ]
-    if not mutation_spec or mutation_spec.lower() == "nan":
-        return changed
-
-    declared: list[int] = []
-    for mutation in mutation_spec.split(";"):
-        _wt_aa, position, _mutant_aa = parse_mutation(mutation)
-        declared.append(position)
-    if sorted(set(declared)) != changed:
-        raise ValueError(
-            f"mutation_spec positions {sorted(set(declared))} do not match actual "
-            f"WT/mutant differences {changed}."
-        )
-    return changed
-
-
-def _build_comparison(
-    variant_id: str,
-    mutation_spec: str,
-    wt: SequenceScore,
-    mutant: SequenceScore,
+def _build_comparison(variant_id: str, wt: SequenceScore, mutant: SequenceScore,
     model_name: str,
     per_residue_path: Path | None,
 ) -> tuple[dict[str, Any], pd.DataFrame]:
@@ -338,209 +235,35 @@ def _build_comparison(
         wt.residue_representations,
         mutant.residue_representations,
     )
-    mutation_indices = np.asarray(mutation_positions, dtype=int) - 1
+
     pooled_cosine = _cosine_similarity(
         wt.pooled_representation,
         mutant.pooled_representation,
     )
 
-    wt_pp = wt.pseudo_perplexity
-    mutant_pp = mutant.pseudo_perplexity
-    pp_percent_change = (
-        100.0 * (mutant_pp - wt_pp) / wt_pp if wt_pp != 0.0 else math.nan
-    )
     summary = {
         "variant_id": variant_id,
-        "mutation_spec": mutation_spec,
         "model_name": model_name,
-        "sequence_length": len(mutant.sequence),
-        "mutation_count": len(mutation_positions),
-        "wt_pseudo_log_likelihood": wt.pseudo_log_likelihood,
-        "mutant_pseudo_log_likelihood": mutant.pseudo_log_likelihood,
+
         "delta_pseudo_log_likelihood": (
             mutant.pseudo_log_likelihood - wt.pseudo_log_likelihood
         ),
-        "wt_mean_log_probability": wt.mean_log_probability,
-        "mutant_mean_log_probability": mutant.mean_log_probability,
+
         "delta_mean_log_probability": (
             mutant.mean_log_probability - wt.mean_log_probability
         ),
-        "wt_pseudo_perplexity": wt_pp,
-        "mutant_pseudo_perplexity": mutant_pp,
-        "delta_pseudo_perplexity": mutant_pp - wt_pp,
-        "pseudo_perplexity_percent_change": pp_percent_change,
-        "pooled_representation_cosine_similarity": pooled_cosine,
+
         "pooled_representation_cosine_distance": 1.0 - pooled_cosine,
         "pooled_representation_l2_distance": float(
             np.linalg.norm(mutant.pooled_representation - wt.pooled_representation)
         ),
-        "mean_residue_representation_cosine_similarity": float(
-            np.nanmean(residue_cosine)
-        ),
-        "mean_residue_representation_cosine_distance": float(
-            np.nanmean(1.0 - residue_cosine)
-        ),
-        "mean_residue_representation_l2_distance": float(np.mean(residue_l2)),
-        "max_residue_representation_l2_distance": float(np.max(residue_l2)),
-        "mutation_site_representation_cosine_similarity": float(
-            np.nanmean(residue_cosine[mutation_indices])
-        ),
-        "mutation_site_representation_cosine_distance": float(
-            np.nanmean(1.0 - residue_cosine[mutation_indices])
-        ),
-        "mutation_site_representation_l2_distance": float(
-            np.mean(residue_l2[mutation_indices])
-        ),
+        
+        
         "per_residue_path": str(per_residue_path) if per_residue_path else None,
         "analysis_status": "PASS",
         "analysis_error": None,
     }
-    per_residue = pd.DataFrame(
-        {
-            "variant_id": variant_id,
-            "position": np.arange(1, len(wt.sequence) + 1),
-            "wt_aa": list(wt.sequence),
-            "mutant_aa": list(mutant.sequence),
-            "is_mutation_site": [
-                position in set(mutation_positions)
-                for position in range(1, len(wt.sequence) + 1)
-            ],
-            "wt_log_probability": wt.residue_log_probabilities,
-            "mutant_log_probability": mutant.residue_log_probabilities,
-            "delta_log_probability": (
-                mutant.residue_log_probabilities - wt.residue_log_probabilities
-            ),
-            "representation_cosine_similarity": residue_cosine,
-            "representation_cosine_distance": 1.0 - residue_cosine,
-            "representation_l2_distance": residue_l2,
-        }
-    )
-    return summary, per_residue
-
-
-def _failed_record(
-    variant_id: str,
-    mutation_spec: str,
-    model_name: str,
-    status: str,
-    error: str,
-) -> dict[str, Any]:
-    record = {column: None for column in SUMMARY_COLUMNS}
-    record.update(
-        {
-            "variant_id": variant_id,
-            "mutation_spec": mutation_spec,
-            "model_name": model_name,
-            "analysis_status": status,
-            "analysis_error": error,
-        }
-    )
-    return record
-
-
-def run_esm2_analysis(
-    manifest: pd.DataFrame,
-    paths: ProjectPaths,
-    config: ESM2AnalysisConfig | None = None,
-    *,
-    scorer: ESM2Scorer | None = None,
-    output_path: str | Path | None = None,
-    wt_score: SequenceScore | None = None,
-) -> pd.DataFrame:
-    """Score every valid T2 mutant and compare it directly with WT.
-
-    Positive ``delta_pseudo_log_likelihood`` means ESM-2 considers the mutant
-    more probable than WT; negative ``delta_pseudo_perplexity`` has the same
-    favorable direction.  Representation distances are descriptive and do not
-    have a universal biological pass/fail cutoff.
-
-    ``scorer`` is injectable for testing.  When supplied, its config determines
-    the model label and the explicit ``config`` argument must be omitted.
-    """
-
-    missing = REQUIRED_MANIFEST_COLUMNS - set(manifest.columns)
-    if missing:
-        raise ValueError(f"T2 manifest is missing required columns: {sorted(missing)}")
-    if scorer is not None and config is not None:
-        raise ValueError("Pass either config or scorer, not both.")
-
-    paths.ensure()
-    output = Path(output_path) if output_path is not None else (
-        paths.table("ESM2_mutant_comparison.csv")
-    )
-    output.parent.mkdir(parents=True, exist_ok=True)
-
-    if manifest.empty:
-        empty = pd.DataFrame(columns=SUMMARY_COLUMNS)
-        empty.to_csv(output, index=False)
-        return empty
-
-    active_scorer = scorer or ESM2Scorer(config)
-    active_config = active_scorer.config
-    active_config.validate()
-    _wt_id, wt_sequence = read_single_fasta(paths.wt_fasta)
-    if wt_score is None:
-        wt_score = active_scorer.score_sequence(wt_sequence)
-    elif wt_score.sequence != wt_sequence:
-        raise ValueError('Cached ESM-2 WT score does not match the current WT sequence.')
-
-    per_residue_dir = paths.esm2_per_residue
-    if active_config.save_per_residue:
-        per_residue_dir.mkdir(parents=True, exist_ok=True)
-
-    records: list[dict[str, Any]] = []
-    for row in manifest.to_dict(orient="records"):
-        variant_id = str(row["variant_id"])
-        mutation_spec = str(row.get("mutation_spec", ""))
-        manifest_status = str(row.get("status", "PASS"))
-        if manifest_status != "PASS":
-            records.append(
-                _failed_record(
-                    variant_id,
-                    mutation_spec,
-                    active_config.model_name,
-                    "SKIPPED",
-                    f"T2 status is {manifest_status}: {row.get('error', '')}",
-                )
-            )
-            continue
-
-        try:
-            _mutant_id, mutant_sequence = read_single_fasta(row["fasta_path"])
-            mutant_score = active_scorer.score_sequence(mutant_sequence)
-            per_residue_path = (
-                per_residue_dir / f"{variant_id}_esm2.csv"
-                if active_config.save_per_residue
-                else None
-            )
-            summary, per_residue = _build_comparison(
-                variant_id=variant_id,
-                mutation_spec=mutation_spec,
-                wt=wt_score,
-                mutant=mutant_score,
-                model_name=active_config.model_name,
-                per_residue_path=per_residue_path,
-            )
-            if per_residue_path is not None:
-                per_residue.to_csv(per_residue_path, index=False)
-            records.append(summary)
-        except Exception as exc:
-            if active_config.fail_fast:
-                raise
-            records.append(
-                _failed_record(
-                    variant_id,
-                    mutation_spec,
-                    active_config.model_name,
-                    "FAILED",
-                    str(exc),
-                )
-            )
-
-    result = pd.DataFrame(records, columns=SUMMARY_COLUMNS)
-    result.to_csv(output, index=False)
-    return result
-
+    return summary
 
 def main() -> None:
     """Command-line entry point for running this drop-in module directly."""
@@ -586,5 +309,18 @@ def main() -> None:
     print(args.output or paths.table("ESM2_mutant_comparison.csv"))
 
 
-if __name__ == "__main__":
-    main()
+
+
+
+################_________________________________
+
+
+def sort_mutant_sequences(protein_manifest): 
+    for i in protein_manifest:
+        sequence = protein_manifest.iloc[i]["sequence"]
+        ## either skip wt or be prepared to handle it later
+        score_mut_sequence(sequence)
+        #sort dataframe from score highest to lowest
+
+def score_mut_sequence(seq):
+    pass
