@@ -16,75 +16,24 @@ import pandas as pd
 import torch
 
 
-REQUIRED_MANIFEST_COLUMNS = {"protein_id", "fasta_path"}
-
-SUMMARY_COLUMNS = 
-
 class ESM2Scorer:
     """Lazily load ESM-2 and calculate pseudo-perplexity/representations."""
 
     def __init__(self, predictor, config) -> None:
+
+        if predictor._esm_model is None or predictor._tokenizer is None:
+            raise RuntimeError("Build the EUP predictor before scoring sequences.")
+
+        if config.mask_batch_size < 1:
+            raise ValueError("mask_batch_size must be at least 1.")
+    
         self.config = config
         self._torch = predictor._torch
         self._tokenizer = predictor._tokenizer
         self._model = predictor._esm_model
         self._device = predictor._device
 
-    def _load_model(self) -> None:
-        if self._model is not None:
-            return
-        try:
-            import torch
-            from transformers import AutoModelForMaskedLM, AutoTokenizer
-        except ImportError as exc:
-            raise RuntimeError(
-                "ESM-2 dependencies are missing. Install the project's optional "
-                "EUP dependencies, e.g. `pip install -e '.[eup]'`."
-            ) from exc
-
-        if self.config.device is not None:
-            device = torch.device(self.config.device)
-        elif torch.cuda.is_available():
-            device = torch.device("cuda")
-        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            device = torch.device("mps")
-        else:
-            device = torch.device("cpu")
-
-
-        dtype_name = self.config.dtype
-        if dtype_name == "auto":
-            dtype_name = "float16" if device.type == "cuda" else "float32"
-        if device.type == "cpu" and dtype_name == "float16":
-            raise ValueError("float16 ESM-2 inference is not supported on CPU; use float32.")
-        dtype = getattr(torch, dtype_name)
-
-
-        cache_dir = (
-            str(Path(self.config.model_cache_dir).expanduser())
-            if self.config.model_cache_dir is not None
-            else None
-        )
-        tokenizer = AutoTokenizer.from_pretrained(
-            self.config.model_name,
-            cache_dir=cache_dir,
-        )
-        if tokenizer.mask_token_id is None:
-            raise ValueError(f"Tokenizer for {self.config.model_name!r} has no mask token.")
-        model = AutoModelForMaskedLM.from_pretrained(
-            self.config.model_name,
-            cache_dir=cache_dir,
-            torch_dtype=dtype,
-            low_cpu_mem_usage=True,
-        )
-        model.to(device)
-        model.eval()
-
-        self._torch = torch
-        self._tokenizer = tokenizer
-        self._model = model
-        self._device = device
-
+        
     def _encode(self, sequence: str) -> tuple[Any, Any, Any]:
         tokenizer = self._tokenizer
         encoded = tokenizer(
@@ -112,7 +61,7 @@ class ESM2Scorer:
             )
         return encoded["input_ids"], encoded["attention_mask"], residue_token_indices
 
-    def score_sequence(self, sequence: str):
+    def score_sequence_residue_log_probabilities(self, sequence: str):
         """Score one sequence without truncation.
 
         Pseudo-log-likelihood is calculated by masking every residue exactly
@@ -125,23 +74,6 @@ class ESM2Scorer:
         model = self._model
         device = self._device
         input_ids, attention_mask, residue_indices = self._encode(sequence)
-
-        device_ids = input_ids.to(device)
-        device_attention = attention_mask.to(device)
-        device_residue_indices = residue_indices.to(device)
-
-        with torch.inference_mode():
-            base_outputs = model.base_model(
-                input_ids=device_ids,
-                attention_mask=device_attention,
-                return_dict=True,
-            )
-            residue_representations = (
-                base_outputs.last_hidden_state[0, device_residue_indices]
-                .float()
-                .cpu()
-                .numpy()
-            )
 
         log_probability_chunks: list[np.ndarray] = []
         batch_size = self.config.mask_batch_size
@@ -174,15 +106,6 @@ class ESM2Scorer:
         residue_log_probabilities = np.concatenate(log_probability_chunks)
         return residue_log_probabilities.mean()
 
-    def release(self) -> None:
-        """Release model references and clear CUDA cache when applicable."""
-
-        torch = self._torch
-        device = self._device
-        self._tokenizer = None
-        self._model = None
-        if torch is not None and device is not None and device.type == "cuda":
-            torch.cuda.empty_cache()
 
 def _cosine_similarity(left: np.ndarray, right: np.ndarray) -> float:
     denominator = float(np.linalg.norm(left) * np.linalg.norm(right))
@@ -256,55 +179,7 @@ def _build_comparison(variant_id: str, wt: SequenceScore, mutant: SequenceScore,
     }
     return summary
 
-def main() -> None:
-    """Command-line entry point for running this drop-in module directly."""
-
-    parser = argparse.ArgumentParser(
-        description="Compare T2 mutants with WT using ESM-2 pseudo-perplexity and embeddings."
-    )
-    parser.add_argument("--project-root", type=Path, default=Path.cwd())
-    parser.add_argument("--manifest", type=Path)
-    parser.add_argument("--output", type=Path)
-    parser.add_argument("--model-name", default=DEFAULT_ESM2_MODEL)
-    parser.add_argument("--mask-batch-size", type=int, default=8)
-    parser.add_argument("--device")
-    parser.add_argument(
-        "--dtype",
-        choices=["auto", "float32", "float16", "bfloat16"],
-        default="auto",
-    )
-    parser.add_argument("--model-cache-dir", type=Path)
-    parser.add_argument("--no-per-residue", action="store_true")
-    parser.add_argument("--fail-fast", action="store_true")
-    args = parser.parse_args()
-
-    paths = ProjectPaths.from_root(args.project_root)
-    manifest_path = args.manifest or paths.table("T2_mutation_manifest.csv")
-    manifest = pd.read_csv(manifest_path)
-    result = run_esm2_analysis(
-        manifest,
-        paths,
-        ESM2AnalysisConfig(
-            model_name=args.model_name,
-            mask_batch_size=args.mask_batch_size,
-            device=args.device,
-            dtype=args.dtype,
-            model_cache_dir=args.model_cache_dir,
-            save_per_residue=not args.no_per_residue,
-            fail_fast=args.fail_fast,
-        ),
-        output_path=args.output,
-    )
-    pass_count = int(result["analysis_status"].eq("PASS").sum())
-    print(f"ESM-2 analysis complete: {pass_count}/{len(result)} mutants passed.")
-    print(args.output or paths.table("ESM2_mutant_comparison.csv"))
-
-
-
-
-
 ################_________________________________
-
 
 def sort_mutant_sequences(protein_manifest): 
     for i in protein_manifest:
