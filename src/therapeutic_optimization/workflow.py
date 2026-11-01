@@ -36,7 +36,7 @@ class ProcessFlowDiagram():
         self.local_root = self.project_root
 
         #sets the property for the initial insight 
-        self.property = property
+        self.property_name = property
         #sets the algorithim for generating the mutants
         self.mutant_mode =  mutant_mode
 

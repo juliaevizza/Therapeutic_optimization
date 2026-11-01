@@ -179,12 +179,37 @@ def _build_comparison(variant_id: str, wt: SequenceScore, mutant: SequenceScore,
 
 ################_________________________________
 
-def sort_mutant_sequences(protein_manifest): 
-    for i in protein_manifest:
-        sequence = protein_manifest.iloc[i]["sequence"]
-        ## either skip wt or be prepared to handle it later
-        score_mut_sequence(sequence)
-        #sort dataframe from score highest to lowest
+#def sort_mutant_sequences(protein_manifest): 
+#    for i in protein_manifest:
+#        sequence = protein_manifest.iloc[i]["sequence"]
+#        ## either skip wt or be prepared to handle it later
+#        score_mut_sequence(sequence)
+#        #sort dataframe from score highest to lowest
+
+def sort_mutant_sequences(
+    protein_manifest: pd.DataFrame,
+    scorer: ESM2Scorer,
+) -> pd.DataFrame:
+    """Score all mutants and return them in descending score order."""
+    is_wt = protein_manifest["mutant_id"].eq("WT")
+
+    wt = protein_manifest.loc[is_wt].copy()
+    mutants = protein_manifest.loc[~is_wt].copy()
+
+    mutants["mean_log_probability"] = [
+        scorer.score_sequence(sequence)
+        for sequence in mutants["sequence"]
+    ]
+
+    mutants = mutants.sort_values(
+        "mean_log_probability",
+        ascending=False,
+        kind="stable",
+    )
+
+    wt["mean_log_probability"] = np.nan
+
+    return pd.concat([wt, mutants], ignore_index=True)
 
 def score_mut_sequence(seq):
     pass
