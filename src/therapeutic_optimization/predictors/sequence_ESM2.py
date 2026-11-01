@@ -68,8 +68,6 @@ class ESM2Scorer:
         once.  Representations are final-layer embeddings from one unmasked
         forward pass, restricted to residue tokens.
         """
-
-        self._load_model()
         torch = self._torch
         model = self._model
         device = self._device
