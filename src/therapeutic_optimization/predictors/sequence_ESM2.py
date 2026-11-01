@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 
 #TODO: resolve
-import esm
 import torch
 
 
@@ -27,7 +26,7 @@ class ESM2Scorer:
     def __init__(self, predictor, config) -> None:
         self.config = config
         self._torch = predictor._torch
-        self._tokenizer: predictor._tokenizer
+        self._tokenizer = predictor._tokenizer
         self._model = predictor._esm_model
         self._device = predictor._device
 

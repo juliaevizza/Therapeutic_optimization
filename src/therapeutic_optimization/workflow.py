@@ -10,7 +10,8 @@ from .transformations.T2_mutants import (
     assertQC as assert_qcT2,
     generate_mutant_seq, write_mutant_fastas
 )
-from .predictors.sequence_ESM2 import sort_mutant_sequences
+from .predictors.sequence_ESM2 import ESM2Scorer, sort_mutant_sequences
+
 
 import math
 from datetime import datetime, timezone
@@ -154,7 +155,6 @@ class ProcessFlowDiagram():
     def sequence(self, model) -> dict[str, list[Path]]:
         scorer = ESM2Scorer(model, self.config.esm2)
         self.protein_manifest = sort_mutant_sequences(self.protein_manifest, scorer)
-        sort_mutant_sequences(self.protein_manifest)
 
     def structural(self) -> dict[str, list[Path]]:
         """Run strcutural computation and return structural anaylsis metrics """

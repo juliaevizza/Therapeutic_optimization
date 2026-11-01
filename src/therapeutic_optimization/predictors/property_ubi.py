@@ -225,7 +225,7 @@ class EUPPredictor(SitePredictor):
         encoded = {key: value.to(device) for key, value in encoded.items()}
 
         with torch.inference_mode():
-            hidden = esm_model(**encoded, return_dict=True).last_hidden_state[0]
+            hidden = esm_model.base_model(**encoded, return_dict=True).last_hidden_state[0]
             lysine_token_indices = [
                 int(residue_token_indices[position - 1])
                 for position in lysine_positions
@@ -257,6 +257,5 @@ class EUPPredictor(SitePredictor):
             result = result.sort_values("probability", ascending=False,).reset_index(drop=True)
 
 
-        hidden = esm_model.base_model(**encoded, return_dict=True).last_hidden_state[0]
         
         return result
