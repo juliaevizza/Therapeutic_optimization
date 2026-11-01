@@ -21,18 +21,15 @@ REQUIRED_MANIFEST_COLUMNS = {"protein_id", "fasta_path"}
 
 SUMMARY_COLUMNS = 
 
-
-
 class ESM2Scorer:
     """Lazily load ESM-2 and calculate pseudo-perplexity/representations."""
 
-    def __init__(self) -> None:
-        self.config = ESM2AnalysisConfig()
-        self.config.validate()
-        self._torch: Any | None = None
-        self._tokenizer: Any | None = None
-        self._model: Any | None = None
-        self._device: Any | None = None
+    def __init__(self, predictor, config) -> None:
+        self.config = config
+        self._torch = predictor._torch
+        self._tokenizer: predictor._tokenizer
+        self._model = predictor._esm_model
+        self._device = predictor._device
 
     def _load_model(self) -> None:
         if self._model is not None:
@@ -116,7 +113,7 @@ class ESM2Scorer:
             )
         return encoded["input_ids"], encoded["attention_mask"], residue_token_indices
 
-    def score_sequence(self, sequence: str) -> SequenceScore:
+    def score_sequence(self, sequence: str):
         """Score one sequence without truncation.
 
         Pseudo-log-likelihood is calculated by masking every residue exactly
@@ -176,12 +173,7 @@ class ESM2Scorer:
             log_probability_chunks.append(true_log_probabilities.cpu().numpy())
 
         residue_log_probabilities = np.concatenate(log_probability_chunks)
-        return SequenceScore(
-            sequence=sequence,
-            residue_log_probabilities=residue_log_probabilities,
-            residue_representations=residue_representations,
-            pooled_representation=residue_representations.mean(axis=0),
-        )
+        return residue_log_probabilities.mean()
 
     def release(self) -> None:
         """Release model references and clear CUDA cache when applicable."""

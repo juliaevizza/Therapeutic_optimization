@@ -121,8 +121,8 @@ class EUPPredictor(SitePredictor):
         try:
             import torch
             import torch.nn as nn
-            from transformers import AutoModel, AutoTokenizer
-            
+            from transformers import AutoModelForMaskedLM, AutoTokenizer
+
         except ImportError as exc:
             raise RuntimeError(
                 'EUP dependencies are missing. Install torch, transformers, accelerate, and safetensors.'
@@ -141,7 +141,7 @@ class EUPPredictor(SitePredictor):
             ESM_MODEL_NAME,
             cache_dir=self.model_cache_dir,
         )
-        esm_model = AutoModel.from_pretrained(
+        esm_model = AutoModelForMaskedLM.from_pretrained(
             ESM_MODEL_NAME,
             cache_dir=self.model_cache_dir,
             torch_dtype=torch.float16,
@@ -256,4 +256,7 @@ class EUPPredictor(SitePredictor):
         if not result.empty:
             result = result.sort_values("probability", ascending=False,).reset_index(drop=True)
 
+
+        hidden = esm_model.base_model(**encoded, return_dict=True).last_hidden_state[0]
+        
         return result

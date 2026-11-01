@@ -151,7 +151,9 @@ class ProcessFlowDiagram():
         generate_mutant_seq(self.wt_seq, self.mutant_mode, mutation_sites, self.protein_manifest, self.alt_AA)
         write_mutant_fastas(self.protein_manifest, self.local_paths["mut_fasta"])
 
-    def sequence(self) -> dict[str, list[Path]]:
+    def sequence(self, model) -> dict[str, list[Path]]:
+        scorer = ESM2Scorer(model, self.config.esm2)
+        self.protein_manifest = sort_mutant_sequences(self.protein_manifest, scorer)
         sort_mutant_sequences(self.protein_manifest)
 
     def structural(self) -> dict[str, list[Path]]:
@@ -209,15 +211,11 @@ class ProcessFlowDiagram():
         mutation_sites, model = self.property()
 
         #generate mutant structures and write them to the protein_manifest
-        self.T2(mutation_sites)
-
-        #if there is more than 100 mutants, do an esm-2 cosine distance filter
-        if len(self.protein_manifest) >= 100: 
-            ### will sort based on sequence
-            self.sequence()
-            #todo crop list to top 100?
-
-        model.release()
+        try:
+            self.T2(mutation_sites)
+            self.sequence(model)
+        finally:
+            model.release()
 
         #run the structural prediction on the downselected list
         _mutant_structures_pathes = self.structural()
