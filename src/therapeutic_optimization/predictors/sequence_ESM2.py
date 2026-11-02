@@ -61,7 +61,7 @@ class ESM2Scorer:
             )
         return encoded["input_ids"], encoded["attention_mask"], residue_token_indices
 
-    def score_sequence_residue_log_probabilities(self, sequence: str):
+    def score_sequence(self, sequence: str):
         """Score one sequence without truncation.
 
         Pseudo-log-likelihood is calculated by masking every residue exactly

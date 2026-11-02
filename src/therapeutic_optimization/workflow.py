@@ -117,7 +117,7 @@ class ProcessFlowDiagram():
         This will also save a fasta copy of the wildtype sequence to the fastas 
         folder in storage. 
         """
-        if (self.property == "ubiquitination" ):
+        if (self.property_name == "ubiquitination" ):
             wt_info = prepare_wt_input(sequence=self.wt_seq,
         input_directory=self.local_paths["wt_fasta"],)
 
@@ -135,7 +135,7 @@ class ProcessFlowDiagram():
 
         sequence = self.wt_seq
         ###Predict sites and return a string of list of the sites
-        if (self.property == "ubiquitination" ):
+        if (self.property_name == "ubiquitination" ):
             
             model = EUPPredictor(threshold=self.config.ubiquitination.threshold,
                         eup_repo_dir=self.config.ubiquitination.eup_repo_dir,
